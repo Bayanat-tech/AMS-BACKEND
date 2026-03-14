@@ -6,7 +6,7 @@ import logger from "../../utils/logger";
 import { FaceRecognitionService } from "./face_recognition.service";
 import { getSignedUrl, uploadEmployeeFace, uploadFile } from "../../services/ociUpload.service";
 import { CacheService } from "./cache.service";
-import { AppDataSource, oracleDb, TypeORMService } from "../../database/connection"
+import { AppDataSource, oracleDb, TypeORMService } from "../../database/connection";
 import { Between, In, Or } from "typeorm";
 import { Employee} from "../../entity/Attendance/employee.entity";
 import {AttendanceRecord} from "../../entity/Attendance/attendance_record.entity";
@@ -124,7 +124,8 @@ export class AttendanceService {
       image_buffer: imageBuffer, 
       auto_confirm_time: new Date(now.getTime() + AUTO_CONFIRM_DELAY_MS),
       is_cancelled: false,
-      autoConfirmTimer: null as NodeJS.Timeout | null
+      // autoConfirmTimer: null as NodeJS.Timeout | null
+      autoConfirmTimer: null as ReturnType<typeof setTimeout> | null
     };
 
     logger.info(`[MARK] Stored image buffer in memory for UUID: ${uuid}`, {
@@ -156,7 +157,9 @@ export class AttendanceService {
       }
     }, AUTO_CONFIRM_DELAY_MS);
 
-    pendingData.autoConfirmTimer = autoConfirmTimer;
+    // pendingData.autoConfirmTimer = autoConfirmTimer;
+    // this.pendingConfirmations.set(uuid, pendingData);
+    pendingData.autoConfirmTimer = autoConfirmTimer as ReturnType<typeof setTimeout>;
     this.pendingConfirmations.set(uuid, pendingData);
 
     // ✅ DO NOT UPLOAD IMAGE HERE - ONLY UPLOAD IF ATTENDANCE IS CANCELLED (PROXY)

@@ -1,9 +1,7 @@
 import axios from "axios";
 import https from "https";
-import { oracleDb } from "../database/connection";
-import { getRepository } from "../database/connection";
 import { Vendor } from "../entity/Vendor";
-
+import { getRepository, oracleDb } from "../database/connection";
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false,

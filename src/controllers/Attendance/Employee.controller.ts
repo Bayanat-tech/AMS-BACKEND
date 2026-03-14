@@ -188,7 +188,7 @@ export class EmployeeController {
 
       // Find employee
       const employee = await repo.findOne({
-        where: { employee_id },
+        where: { employee_id: employee_id as string },
       });
 
       if (!employee) {
@@ -237,7 +237,7 @@ export class EmployeeController {
 
             newFaces.push({
               id: uuidv4(),
-              employee_id,
+              employee_id: employee_id as string,
               s3_key: s3Key,
               descriptor: JSON.stringify(descriptor),
               is_active: "1",
@@ -258,7 +258,7 @@ export class EmployeeController {
         }
 
         // Deactivate old faces and save new ones
-        await EmployeesFace.update({ employee_id }, { is_active: "0" });
+        await EmployeesFace.update({ employee_id: employee_id as string }, { is_active: "0" });
         for (const f of newFaces) {
           const faceEntity = EmployeesFace.create(f as any);
           await EmployeesFace.save(faceEntity);

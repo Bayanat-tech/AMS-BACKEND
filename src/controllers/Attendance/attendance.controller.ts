@@ -365,7 +365,8 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
 
   static async approveAttendanceRequest(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      // const { id } = req.params;
+      const { id } = req.params as { id: string };
       const approvedBy = (req as any).user?.loginid || 'system';
       const { notes } = req.body;
 
@@ -386,7 +387,7 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
 
   static async rejectAttendanceRequest(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const { id } = req.params as { id: string };;
       const approvedBy = (req as any).user?.loginid || 'system';
       const { notes } = req.body;
 

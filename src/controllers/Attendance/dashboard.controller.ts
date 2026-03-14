@@ -236,7 +236,7 @@ export class DashboardController {
 
       const history = await attendanceRecord.find({
         where: {
-          employee_id,
+          employee_id: employee_id as string,
           record_date: MoreThanOrEqual(startDate),
         },
         relations: {
@@ -256,9 +256,13 @@ export class DashboardController {
       });
 
       const stats = {
-        present: history.filter((r) => r.status === "present").length,
-        late: history.filter((r) => r.status === "late").length,
-        halfDay: history.filter((r) => r.status === "half-day").length,
+        // present: history.filter((r) => r.status === "present").length,
+        // late: history.filter((r) => r.status === "late").length,
+        // halfDay: history.filter((r) => r.status === "half-day").length,
+
+        present: history.filter((r: AttendanceRecord) => r.status === "present").length,
+        late: history.filter((r: AttendanceRecord) => r.status === "late").length,
+        halfDay: history.filter((r: AttendanceRecord) => r.status === "half-day").length,
         records: history,
       };
 

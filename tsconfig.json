@@ -10,7 +10,7 @@
     "emitDecoratorMetadata": true,
     "strictPropertyInitialization": false,
     "skipLibCheck": true,
-    "types": ["node"] 
+    "types": ["node"],
   },
   "exclude": ["node_modules", "build"]
 }

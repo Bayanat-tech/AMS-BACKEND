@@ -13,9 +13,12 @@ export class CacheService {
 
   constructor() {
     // Clean up expired items every minute
+    // this.cleanupInterval = setInterval(() => {
+    //   this.cleanupExpired();
+    // }, 60000);
     this.cleanupInterval = setInterval(() => {
-      this.cleanupExpired();
-    }, 60000);
+       this.cleanupExpired();
+    }, 60000) as unknown as NodeJS.Timeout;
   }
 
   static getInstance(): CacheService {

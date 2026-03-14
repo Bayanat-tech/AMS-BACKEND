@@ -1,0 +1,21 @@
+// Export all Security-related entities from this index file
+export { User } from "./User";
+export { Company } from "./company.entity";
+export { RoleMaster } from "./rolemaster.entity";
+export { FlowMaster } from "./flowmaster.entity";
+export { SecModule } from "./secmodule.entity";
+export { SecLoginRoleAccess } from "./seclogin-roleaccess.entity";
+export { MSPSProjectMaster } from "./mspsprojectmaster.entity";
+export { MsRole } from "./msrole.entity";
+export { AccessSecModuleData } from "./accesssecmoduledata.entity";
+export { AccessRoleAppAccess } from "./accessroleappaccess.entity";
+export { AccessUserSecRoleAccess } from "./accessusersecroleaccess.entity";
+export { SecLoginUserDivision } from "./seclogin-usertodivision.entity";
+export { MSHRDivisionMaster } from "./mshrdivisionmaster.entity";
+export { ReportMaster } from "./reportmaster.entity";
+export { QueryMaster } from "./querymaster.entity";
+export { MSCompanyUserAssign } from "./mscompanyuserassign.entity";
+export { MSProjectUserAssign } from "./msprojectuserassign.entity";
+export { MsPsUserRoleMapping } from "./mspsuserrolemapping.entity";
+export { AccessSecOperation } from "./accesssecoperation.entity";
+export { AccessUserSecMaster } from "./assignAccessUser.entity";

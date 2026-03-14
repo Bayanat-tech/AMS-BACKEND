@@ -1,8 +1,7 @@
-import { getRepository } from "../database/connection";
 import { User } from "../entity/User";
 import { Company } from "../entity/Company";
 import bcrypt from "bcrypt";
-import { oracleDb } from "../database/connection";
+import { oracleDb, getRepository } from "../database/connection";
 
 // Add interface for API User
 interface ExternalApiUser {
