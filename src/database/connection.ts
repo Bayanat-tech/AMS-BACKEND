@@ -16,7 +16,7 @@ try {
   console.log("Using thin mode as fallback");
 }
 
-// ==================== RAW ORACLE CONFIG =============
+// ================ RAW ORACLE CONFIG =============
 const dbConfig: oracledb.PoolAttributes = {
   user: constants.DATABASE.ORACLE_USER || process.env.ORACLE_USER,
   password:
