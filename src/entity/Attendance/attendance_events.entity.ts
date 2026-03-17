@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, OneToOne, PrimaryColumn } from "typeorm";
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, OneToOne, PrimaryColumn, Index } from "typeorm";
 import constants from "../../helpers/constants";
 import { AttendanceRecord } from "./attendance_record.entity";
 import { ProxyLog } from "./ProxyLog.entity";
@@ -22,10 +22,16 @@ export enum AttendanceStatus {
 }
 
 @Entity({ name: constants.TABLE.ATTENDANCE_EVENTS })
+@Index(["employee_id", "company_code"])
+@Index(["event_time", "company_code"])
+@Index(["company_code"])
 export class AttendanceEvent {
   // @PrimaryGeneratedColumn("uuid")
   @PrimaryColumn({ name: "ID", type: "varchar2", length: 36 })
   id!: string;
+
+  @Column({ name: "COMPANY_CODE", type: "varchar2", length: 5 })
+  company_code!: string;
 
   @Column({ name: "EMPLOYEE_ID", type: "varchar2", length: 20 })
   employee_id!: string;
@@ -102,7 +108,6 @@ export class AttendanceEvent {
   @Column({ name: "CANCELLATION_REASON", type: "varchar2", length: 500, nullable: true })
   cancellation_reason!: string;
 
-  //Virtual composed field — NOT stored in DB (avoids selecting non-existing column)
   get location_data() {
     if (
       this.latitude == null &&

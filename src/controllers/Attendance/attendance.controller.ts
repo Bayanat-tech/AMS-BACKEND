@@ -15,6 +15,13 @@ export class AttendanceController {
   
 static async markAttendance(req: Request, res: Response): Promise<void> {
      try {
+      const company_code = (req as any).user?.company_code;
+      if (!company_code) {
+        logger.warn("Attendance marking attempt without company_code");
+        res.status(400).json({ error: "Company code is required" });
+        return;
+      }
+
       const { 
         action, 
         latitude, 
@@ -108,7 +115,8 @@ static async markAttendance(req: Request, res: Response): Promise<void> {
         match.employeeId,
         action,
         file.buffer,
-        locationData
+        locationData,
+        company_code
       );
 
       res.status(200).json({
@@ -133,6 +141,13 @@ static async markAttendance(req: Request, res: Response): Promise<void> {
 
 static async confirmAttendance(req: Request, res: Response): Promise<void> {
     try {
+      const company_code = (req as any).user?.company_code;
+      if (!company_code) {
+        logger.error(`[CONFIRM-CTRL] Missing company_code in request`);
+        res.status(400).json({ error: "Company code is required" });
+        return;
+      }
+
       const { uuid, confirmed_by = 'user' } = req.body;
 
       if (!uuid) {
@@ -141,10 +156,10 @@ static async confirmAttendance(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      logger.info(`[CONFIRM-CTRL] Request received for UUID: ${uuid}, confirmed_by: ${confirmed_by}`);
+      logger.info(`[CONFIRM-CTRL] Request received for UUID: ${uuid}, confirmed_by: ${confirmed_by}, company_code: ${company_code}`);
       const startTime = Date.now();
       
-      const result = await AttendanceService.confirmAttendance(uuid, confirmed_by);
+      const result = await AttendanceService.confirmAttendance(uuid, confirmed_by, company_code);
       const duration = Date.now() - startTime;
       
       logger.info(`[CONFIRM-CTRL] Service returned result in ${duration}ms:`, { 
@@ -174,6 +189,13 @@ static async confirmAttendance(req: Request, res: Response): Promise<void> {
 
 static async cancelAttendance(req: Request, res: Response): Promise<void> {
   try {
+    const company_code = (req as any).user?.company_code;
+    if (!company_code) {
+      logger.warn("Cancel attendance attempt without company_code");
+      res.status(400).json({ error: "Company code is required" });
+      return;
+    }
+
     const { 
       uuid, 
       actual_employee_code, 
@@ -181,7 +203,7 @@ static async cancelAttendance(req: Request, res: Response): Promise<void> {
       reason = 'proxy_detected_by_user'
     } = req.body;
 
-    logger.info(`[CANCEL-CTRL] Cancel request received - UUID: ${uuid}, Reason: ${reason}`);
+    logger.info(`[CANCEL-CTRL] Cancel request received - UUID: ${uuid}, Reason: ${reason}, company_code: ${company_code}`);
 
     if (!uuid || !actual_employee_name) {
       logger.warn(`[CANCEL-CTRL] Missing required fields - UUID: ${uuid}, Name: ${actual_employee_name}`);
@@ -200,7 +222,8 @@ static async cancelAttendance(req: Request, res: Response): Promise<void> {
       uuid, 
       validatedEmployeeCode, 
       validatedEmployeeName,
-      reason 
+      reason,
+      company_code
     );
 
     logger.info(`[CANCEL-CTRL] Service returned - Success: ${result.success}, HasProxyLog: ${!!result.proxyLog}, EmailSent: ${result.emailSent}`);
@@ -219,6 +242,13 @@ static async cancelAttendance(req: Request, res: Response): Promise<void> {
  }
 static async getProxyLogs(req: Request, res: Response): Promise<void> {
     try {
+      const company_code = (req as any).user?.company_code;
+      if (!company_code) {
+        logger.warn("Get proxy logs attempt without company_code");
+        res.status(400).json({ error: "Company code is required" });
+        return;
+      }
+
       const { page, limit, start_date, end_date, employee_code } = req.query;
 
       const result = await AttendanceService.getProxyLogs({
@@ -226,7 +256,8 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
         limit: limit as string,
         start_date: start_date as string,
         end_date: end_date as string,
-        employee_code: employee_code as string
+        employee_code: employee_code as string,
+        company_code
       });
 
       res.status(200).json({

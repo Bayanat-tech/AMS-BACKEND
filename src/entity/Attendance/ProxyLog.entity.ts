@@ -5,15 +5,20 @@ import {
   ManyToOne,
   JoinColumn,
   OneToOne,
+  Index,
 } from "typeorm";
 import { Employee } from "./employee.entity";
 import { AttendanceEvent } from "./attendance_events.entity";
 import constants from "../../helpers/constants";
 
 @Entity({ name: constants.TABLE.PROXY_LOGS })
+@Index(["company_code"])
 export class ProxyLog {
   @PrimaryColumn({ name: "ID", type: "varchar2", length: 36 })
   id!: string;
+
+  @Column({ name: "COMPANY_CODE", type: "varchar2", length: 5 })
+  company_code!: string;
 
   @Column({ name: "UUID", type: "varchar2", length: 100, nullable: true })
   uuid!: string | null;

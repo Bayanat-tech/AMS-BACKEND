@@ -13,18 +13,21 @@ import { AttendanceRecord } from "./attendance_record.entity";
 import { AttendanceEvent } from "./attendance_events.entity";
 
 @Entity({ name: constants.TABLE.EMPLOYEES })
-@Index(["employee_id"], { unique: true })
-@Index(["employee_code"], { unique: true })
+@Index(["employee_id", "company_code"], { unique: true })
+@Index(["employee_code", "company_code"], { unique: true })
+@Index(["company_code"])
 
 export class Employee {
-  //@PrimaryGeneratedColumn("uuid")
   @PrimaryColumn({ name: "ID", type: "varchar2", length: 36 })
   id!: string;
 
-  @Column({ name: "EMPLOYEE_ID", type: "varchar2", length: 20, unique: true })
+  @Column({ name: "COMPANY_CODE", type: "varchar2", length: 5 })
+  company_code!: string;
+
+  @Column({ name: "EMPLOYEE_ID", type: "varchar2", length: 20 })
   employee_id!: string;
 
-  @Column({ name: "EMPLOYEE_CODE", type: "varchar2", length: 20, unique: true})
+  @Column({ name: "EMPLOYEE_CODE", type: "varchar2", length: 20 })
   employee_code!: string;
 
   @Column({ name: "FULL_NAME", type: "varchar2", length: 100 })

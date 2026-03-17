@@ -5,16 +5,23 @@ import {
   OneToMany,
   ManyToOne,
   JoinColumn,
+  Index,
 } from "typeorm";
 import constants from "../../helpers/constants";
 import { AttendanceEvent } from "./attendance_events.entity";
 import { Employee } from "./employee.entity";
 
 @Entity({ name: constants.TABLE.ATTENDANCE_RECORDS })
+@Index(["employee_id", "company_code"])
+@Index(["record_date", "company_code"])
+@Index(["company_code"])
 export class AttendanceRecord {
   // @PrimaryColumn("uuid")
   @PrimaryColumn({ name: "ID", type: "varchar2", length: 36 })
   id!: string;
+
+  @Column({ name: "COMPANY_CODE", type: "varchar2", length: 5 })
+  company_code!: string;
 
   @Column({ name: "EMPLOYEE_ID", type: "varchar2", length: 20 })
   employee_id!: string;

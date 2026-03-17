@@ -1,0 +1,87 @@
+2026-03-17 13:31:10 [[31merror[39m]: uncaughtException: listen EADDRINUSE: address already in use :::3500
+Error: listen EADDRINUSE: address already in use :::3500
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at Function.listen (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\node_modules\express\lib\application.js:635:24)
+    at startServerWithTypeORM (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\index.ts:61:9) 
+Error: listen EADDRINUSE: address already in use :::3500
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at Function.listen (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\node_modules\express\lib\application.js:635:24)
+    at startServerWithTypeORM (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\index.ts:61:9)
+2026-03-17 15:22:48 [[31merror[39m]: Attendance marking error: Employee not found 
+Error: Employee not found
+    at Function.markAttendanceWithAutoConfirm (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:91:13)
+    at async Function.markAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:114:22)
+2026-03-17 15:22:48 [[31merror[39m]: Attendance marking error Employee not found 
+Error: Employee not found
+    at Function.markAttendanceWithAutoConfirm (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:91:13)
+    at async Function.markAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:114:22)
+2026-03-17 15:24:14 [[31merror[39m]: Attendance marking error: Employee not found 
+Error: Employee not found
+    at Function.markAttendanceWithAutoConfirm (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:91:13)
+    at async Function.markAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:114:22)
+2026-03-17 15:24:14 [[31merror[39m]: Attendance marking error Employee not found 
+Error: Employee not found
+    at Function.markAttendanceWithAutoConfirm (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:91:13)
+    at async Function.markAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:114:22)
+2026-03-17 15:53:03 [[31merror[39m]: Failed to save confirmed attendance: entity.getRepository is not a function 
+TypeError: entity.getRepository is not a function
+    at executeTransaction (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:650:39)
+    at Function.saveConfirmedAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:746:20)
+    at Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:355:33)
+    at async Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:162:22)
+2026-03-17 15:53:03 [[31merror[39m]: ❌ [SERVICE-CONFIRM] Confirmation failed for UUID: 1961b472-0907-4cdb-b738-b036df82b54f entity.getRepository is not a function 
+TypeError: entity.getRepository is not a function
+    at executeTransaction (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:650:39)
+    at Function.saveConfirmedAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:746:20)
+    at Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:355:33)
+    at async Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:162:22)
+2026-03-17 15:53:03 [[31merror[39m]: Attendance confirmation error entity.getRepository is not a function 
+TypeError: entity.getRepository is not a function
+    at executeTransaction (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:650:39)
+    at Function.saveConfirmedAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:746:20)
+    at Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:355:33)
+    at async Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:162:22)
+2026-03-17 15:53:03 [[31merror[39m]: [CONFIRM-CTRL] ❌ Error response sent for UUID 
+2026-03-17 15:54:36 [[31merror[39m]: Face descriptor extraction failed: No face detected in the image 
+Error: No face detected in the image
+    at FaceRecognitionService.extractFaceDescriptor (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\face_recognition.service.ts:277:15)
+    at async Function.markAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:69:22)
+2026-03-17 15:54:36 [[31merror[39m]: Face descriptor extraction failed: No face detected in the image 
+Error: No face detected in the image
+    at FaceRecognitionService.extractFaceDescriptor (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\face_recognition.service.ts:277:15)
+    at async Function.markAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:83:22)
+2026-03-17 15:54:36 [[31merror[39m]: Attendance marking error No face detected in the image 
+Error: No face detected in the image
+    at FaceRecognitionService.extractFaceDescriptor (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\face_recognition.service.ts:277:15)
+    at async Function.markAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:83:22)
+2026-03-17 15:55:03 [[31merror[39m]: Attendance marking error: Employee not found 
+Error: Employee not found
+    at Function.markAttendanceWithAutoConfirm (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:91:13)
+    at async Function.markAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:114:22)
+2026-03-17 15:55:03 [[31merror[39m]: Attendance marking error Employee not found 
+Error: Employee not found
+    at Function.markAttendanceWithAutoConfirm (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:91:13)
+    at async Function.markAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:114:22)
+2026-03-17 15:58:46 [[31merror[39m]: Failed to save confirmed attendance: entity.getRepository is not a function 
+TypeError: entity.getRepository is not a function
+    at executeTransaction (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:650:39)
+    at Function.saveConfirmedAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:746:20)
+    at Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:355:33)
+    at async Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:162:22)
+2026-03-17 15:58:46 [[31merror[39m]: ❌ [SERVICE-CONFIRM] Confirmation failed for UUID: f3e1453e-fd2b-46b8-8ddc-e832e87e0624 entity.getRepository is not a function 
+TypeError: entity.getRepository is not a function
+    at executeTransaction (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:650:39)
+    at Function.saveConfirmedAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:746:20)
+    at Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:355:33)
+    at async Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:162:22)
+2026-03-17 15:58:46 [[31merror[39m]: Attendance confirmation error entity.getRepository is not a function 
+TypeError: entity.getRepository is not a function
+    at executeTransaction (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:650:39)
+    at Function.saveConfirmedAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:746:20)
+    at Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\services\Attendance\Attendance.service.ts:355:33)
+    at async Function.confirmAttendance (D:\JMCCBACKUPWITHDATE\AMS-BACKEND\src\controllers\Attendance\attendance.controller.ts:162:22)
+2026-03-17 15:58:46 [[31merror[39m]: [CONFIRM-CTRL] ❌ Error response sent for UUID 

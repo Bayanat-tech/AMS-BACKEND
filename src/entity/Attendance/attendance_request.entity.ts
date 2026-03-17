@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryColumn, ManyToOne, JoinColumn } from "typeorm";
+import { Entity, Column, PrimaryColumn, ManyToOne, JoinColumn, Index } from "typeorm";
 import constants from "../../helpers/constants";
 import { Employee } from "./employee.entity";
 
@@ -10,9 +10,14 @@ export enum AttendanceRequestStatus {
 }
 
 @Entity({ name: constants.TABLE.ATTENDANCE_REQUESTS })
+@Index(["employee_id", "company_code"])
+@Index(["company_code"])
 export class AttendanceRequest {
   @PrimaryColumn({ name: "ID", type: "varchar2", length: 36 })
   id!: string;
+
+  @Column({ name: "COMPANY_CODE", type: "varchar2", length: 5 })
+  company_code!: string;
 
   @Column({ name: "EMPLOYEE_ID", type: "varchar2", length: 20 })
   employee_id!: string;

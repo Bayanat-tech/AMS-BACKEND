@@ -3,12 +3,16 @@ import constants from "../../helpers/constants";
 import { Employee } from "./employee.entity";
 
 @Entity({ name: constants.TABLE.EMPLOYEE_FACES })
-@Index(["employee_id"])
+@Index(["employee_id", "company_code"])
+@Index(["company_code"])
 
 export class EmployeeFace {
   // @PrimaryGeneratedColumn("uuid")
   @PrimaryColumn({ name: "ID", type: "varchar2", length: 36 })
   id!: string;
+
+  @Column({ name: "COMPANY_CODE", type: "varchar2", length: 5 })
+  company_code!: string;
 
   @Column({ name: "EMPLOYEE_ID", type: "varchar2", length: 20 })
   employee_id!: string;

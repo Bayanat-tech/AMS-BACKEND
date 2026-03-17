@@ -16,7 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 import constants from "./src/helpers/constants";
 import authRoutes from "./src/routes/auth.routes";
 // import fileRoutes from "./src/routes/files.routes";
-// import logRoutes from "./src/routes/notification.routes";
+import logRoutes from "./src/routes/notification.routes";
 // import secRoutes from "./src/routes/secuity.routes";
 // import editLangrouter from "./src/routes/user/user.routes";
 
@@ -33,7 +33,7 @@ app.use("/api/auth", authRoutes);
 
 // app.use("/api/security", secRoutes);
 
-// app.use("/api/notification", logRoutes);
+app.use("/api/notification", logRoutes);
 
 app.use("/api/attendance", attendanceRoutes);
 

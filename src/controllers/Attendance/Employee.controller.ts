@@ -12,6 +12,13 @@ import { uploadFile } from "../../services/ociUpload.service";
 export class EmployeeController {
   static async registerEmployee(req: Request, res: Response): Promise<void> {
   try {
+    const company_code = (req as any).user?.company_code;
+    if (!company_code) {
+      logger.warn("Employee registration attempt without company_code");
+      res.status(400).json({ error: "Company code is required" });
+      return;
+    }
+
     const {
       employee_id,
       employee_code,
@@ -28,7 +35,7 @@ export class EmployeeController {
     const Face = AppDataSource.getRepository(EmployeeFace);
 
     const existingEmployee = await EmployeeRecord.findOne({
-      where: { employee_id },
+      where: { employee_id, company_code },
     });
     if (existingEmployee) {
       logger.warn(
@@ -59,6 +66,7 @@ export class EmployeeController {
     }
     const employee = EmployeeRecord.create({
       id: uuidv4(),
+      company_code,
       employee_id,
       employee_code,
       full_name,
@@ -90,6 +98,7 @@ export class EmployeeController {
 
         const face = Face.create({
           id: uuidv4(),
+          company_code,
           employee_id,
           s3_key: s3Key,
           descriptor: JSON.stringify(descriptor),
@@ -155,9 +164,17 @@ export class EmployeeController {
 
   static async getEmployees(req: Request, res: Response): Promise<void> {
     try {
+      const company_code = (req as any).user?.company_code;
+      if (!company_code) {
+        logger.warn("Get employees attempt without company_code");
+        res.status(400).json({ error: "Company code is required" });
+        return;
+      }
+
       const employeeRepository = AppDataSource.getRepository(Employee);
 
       const employees = await employeeRepository.find({
+        where: { company_code },
         order: {
           full_name: "ASC", 
         },
@@ -172,6 +189,13 @@ export class EmployeeController {
 
   static async modifyEmployee(req: Request, res: Response ): Promise<void> {
     try {
+      const company_code = (req as any).user?.company_code;
+      if (!company_code) {
+        logger.warn("Modify employee attempt without company_code");
+        res.status(400).json({ error: "Company code is required" });
+        return;
+      }
+
       const { employee_id } = req.params;
       const {
         full_name,
@@ -188,7 +212,7 @@ export class EmployeeController {
 
       // Find employee
       const employee = await repo.findOne({
-        where: { employee_id: employee_id as string },
+        where: { employee_id: employee_id as string, company_code },
       });
 
       if (!employee) {

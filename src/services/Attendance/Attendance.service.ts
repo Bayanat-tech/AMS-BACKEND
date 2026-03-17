@@ -59,7 +59,8 @@ export class AttendanceService {
   employeeId: string,
   action: "check-in" | "check-out",
   imageBuffer: Buffer,
-  locationData?: any
+  locationData?: any,
+  company_code?: string
 ): Promise<{ 
   status: string; 
   timestamp: Date; 
@@ -82,8 +83,8 @@ export class AttendanceService {
 
   try {
     const [employee, confidence] = await Promise.all([
-      this.getEmployeeWithCache(employeeId),
-      this.calculateFaceConfidenceBalanced(employeeId, imageBuffer),
+      this.getEmployeeWithCache(employeeId, company_code),
+      this.calculateFaceConfidenceBalanced(employeeId, imageBuffer, company_code),
     ]);
 
     if (!employee) {
@@ -94,7 +95,8 @@ export class AttendanceService {
     today.setHours(0, 0, 0, 0);
     const existingEvent = await AppDataSource.getRepository(AttendanceEvent).findOne({
       where: { 
-        employee_id: employeeId, 
+        employee_id: employeeId,
+        company_code: company_code || employee.company_code,
         event_type: action === "check-in" ? AttendanceEventType.CHECK_IN : AttendanceEventType.CHECK_OUT,
         status: AttendanceStatus.PENDING,
         event_time: Between(today, new Date(today.getTime() + 86400000))
@@ -102,8 +104,7 @@ export class AttendanceService {
     });
 
     if (existingEvent) {
-      logger.info(`⚠️ Pending record exists for employee ${employeeId} for ${action}, cancelling old one`);
-      // Cancel the old pending record
+      logger.info(`Pending record exists for employee ${employeeId} for ${action}, cancelling old one`);
       if (existingEvent.uuid) {
         this.stopAutoConfirm(existingEvent.uuid);
       }
@@ -116,6 +117,7 @@ export class AttendanceService {
       employee_code: employee.employee_code,
       employee_name: employee.full_name,
       employee_first_name: firstName,
+      company_code: company_code || employee.company_code,
       action,
       confidence,
       timestamp: now,
@@ -124,14 +126,14 @@ export class AttendanceService {
       image_buffer: imageBuffer, 
       auto_confirm_time: new Date(now.getTime() + AUTO_CONFIRM_DELAY_MS),
       is_cancelled: false,
-      // autoConfirmTimer: null as NodeJS.Timeout | null
       autoConfirmTimer: null as ReturnType<typeof setTimeout> | null
     };
 
     logger.info(`[MARK] Stored image buffer in memory for UUID: ${uuid}`, {
       hasImageBuffer: !!imageBuffer,
       imageBufferSize: imageBuffer?.length || 0,
-      imageBufferType: typeof imageBuffer
+      imageBufferType: typeof imageBuffer,
+      company_code: company_code
     });
 
     this.pendingConfirmations.set(uuid, pendingData);
@@ -143,7 +145,7 @@ export class AttendanceService {
           return;
         }
 
-        const isCancelledInDB = await this.isCancelledInDatabase(uuid);
+        const isCancelledInDB = await this.isCancelledInDatabase(uuid, company_code);
         if (isCancelledInDB) {
           this.pendingConfirmations.delete(uuid);
           this.cancelledConfirmations.add(uuid);
@@ -151,7 +153,7 @@ export class AttendanceService {
           return;
         }
 
-        await this.autoConfirmFromMemory(uuid);
+        await this.autoConfirmFromMemory(uuid, company_code);
       } catch (err) {
         logger.error('Auto-confirm scheduling failed:', err);
       }
@@ -198,7 +200,7 @@ export class AttendanceService {
   }
 }
 
-  private static async calculateFaceConfidenceBalanced(employeeId: string, imageBuffer: Buffer): Promise<number> {
+  private static async calculateFaceConfidenceBalanced(employeeId: string, imageBuffer: Buffer, company_code?: string): Promise<number> {
     try {
       if (!this.faceService) {
         await this.initializeFaceService();
@@ -254,8 +256,8 @@ export class AttendanceService {
   }
 
 
-  private static async getEmployeeWithCache(employeeId: string): Promise<any> {
-    const cacheKey = `employee:${employeeId}`;
+  private static async getEmployeeWithCache(employeeId: string, company_code?: string): Promise<any> {
+    const cacheKey = `employee:${employeeId}:${company_code || 'all'}`;
     let employee = await this.cache.get(cacheKey);
     if (employee) {
     return employee;
@@ -263,9 +265,14 @@ export class AttendanceService {
     
     const employees = AppDataSource.getRepository(Employee);
  
+    const whereClause: any = { employee_id: employeeId };
+    if (company_code) {
+      whereClause.company_code = company_code;
+    }
+
     const databasePromise = employees.findOne({
-      where: { employee_id: employeeId },
-      select: ['employee_id', 'employee_code', 'full_name', 'department'],
+      where: whereClause,
+      select: ['employee_id', 'employee_code', 'full_name', 'department', 'company_code'],
     });
 
     const timeoutPromise = new Promise<null>((resolve) => 
@@ -275,7 +282,7 @@ export class AttendanceService {
     employee = await Promise.race([databasePromise, timeoutPromise]);
 
     if (employee) {
-      logger.info("Employee found in DB:", {employeeId: employee.employee_id, code: employee.employee_code, name: employee.full_name});
+      logger.info("Employee found in DB:", {employeeId: employee.employee_id, code: employee.employee_code, name: employee.full_name, company_code: employee.company_code});
       await this.cache.set(cacheKey, employee, CACHE_TTL);
     } else {
       logger.warn("Employee NOT found in DB for ID:", employeeId);
@@ -290,6 +297,7 @@ export class AttendanceService {
         id: uuidv4(),
         employee_id: data.employee_id,
         employee_code: data.employee_code,
+        company_code: data.company_code,
         event_time: data.timestamp,
         event_type: data.action === "check-in" ? AttendanceEventType.CHECK_IN : AttendanceEventType.CHECK_OUT,
         data_transfer: DataTransferFlag.N,
@@ -314,23 +322,23 @@ export class AttendanceService {
       const attendanceRepo = AppDataSource.getRepository(AttendanceEvent);
       const newEvent = attendanceRepo.create(eventData);
       await attendanceRepo.save(newEvent);
-      logger.info(`[DB-SAVE] Record saved for UUID: ${data.uuid}`);
+      logger.info(`[DB-SAVE] Record saved for UUID: ${data.uuid}, company_code: ${data.company_code}`);
       
     } catch (error) {
       logger.error('Background save failed:', error);
     }
   }
- static async confirmAttendance(uuid: string, confirmedBy: string = 'user'): Promise<any> {
+ static async confirmAttendance(uuid: string, confirmedBy: string = 'user', company_code?: string): Promise<any> {
   const startTime = Date.now();
   
-  logger.info(`[SERVICE-CONFIRM] Starting confirmation for UUID: ${uuid}, confirmedBy: ${confirmedBy}`);
+  logger.info(`[SERVICE-CONFIRM] Starting confirmation for UUID: ${uuid}, confirmedBy: ${confirmedBy}, company_code: ${company_code}`);
   
   if (!await this.acquireRequestSlot()) {
     throw new Error("System busy. Please try again.");
   }
 
   try {
-    if (this.isAutoConfirmCancelled(uuid) || await this.isCancelledInDatabase(uuid)) {
+    if (this.isAutoConfirmCancelled(uuid) || await this.isCancelledInDatabase(uuid, company_code)) {
       logger.warn(`[SERVICE-CONFIRM] UUID ${uuid} has been cancelled`);
       throw new Error("Attendance has been cancelled");
     }
@@ -344,7 +352,7 @@ export class AttendanceService {
       
       logger.info(`[SERVICE-CONFIRM] Found pending data for UUID: ${uuid}, saving confirmation`);
       this.pendingConfirmations.delete(uuid);
-      const result = await this.saveConfirmedAttendance(pendingData, confirmedBy);
+      const result = await this.saveConfirmedAttendance(pendingData, confirmedBy, company_code);
       const duration = Date.now() - startTime;
       logger.info(`✅ [SERVICE-CONFIRM] Confirmed from memory in ${duration}ms for UUID: ${uuid}`);
       logger.info(`[SERVICE-CONFIRM] Returning result with event status:`, { found: true, alreadyProcessed: false });
@@ -366,7 +374,7 @@ export class AttendanceService {
   }
   }
 
-  private static async confirmAttendanceFromDatabase(uuid: string, confirmedBy: string): Promise<any> {
+  private static async confirmAttendanceFromDatabase(uuid: string, confirmedBy: string, company_code?: string): Promise<any> {
     const transaction = AppDataSource.createQueryRunner();
 
     try {
@@ -376,6 +384,7 @@ export class AttendanceService {
       const event = await transaction.manager.getRepository(AttendanceEvent)
         .createQueryBuilder('event')
         .where('event.uuid = :uuid', { uuid })
+        .andWhere(company_code ? 'event.company_code = :company_code' : '1=1', { company_code })
         .setLock("pessimistic_write")
         .getOne();
 
@@ -403,7 +412,7 @@ export class AttendanceService {
       const attendanceEventRepo = transaction.manager.getRepository(AttendanceEvent);
 
       let record = await attendanceRecordRepo.findOne({
-        where: { employee_id: event.employee_id, record_date: today }
+        where: { employee_id: event.employee_id, record_date: today, company_code: event.company_code }
       });
       
       if (!record) {
@@ -411,6 +420,7 @@ export class AttendanceService {
           id: uuidv4(),
           employee_id: event.employee_id,
           employee_code: event.employee_code,
+          company_code: event.company_code,
           record_date: today,
           first_check_in: event.event_type === AttendanceEventType.CHECK_IN ? event.event_time : null,
           check_in: event.event_type === AttendanceEventType.CHECK_IN ? event.event_time : null,
@@ -474,7 +484,8 @@ export class AttendanceService {
   uuid: string, 
   actualEmployeeCode: string = 'NOT_RECOGNIZED', 
   actualEmployeeName: string = 'User Cancelled',
-  reason: string = 'user_cancelled'
+  reason: string = 'user_cancelled',
+  company_code?: string
 ): Promise<any> {
   const startTime = Date.now();
   
@@ -494,8 +505,8 @@ export class AttendanceService {
       logger.info(`[CANCEL] UUID ${uuid} already cancelled in memory`);
     }
 
-    logger.info(`[CANCEL] Proceeding with database cancellation for UUID: ${uuid}, Reason: ${reason}`);
-    const result = await this.cancelAttendanceFromDatabase(uuid, actualEmployeeCode, actualEmployeeName, reason);
+    logger.info(`[CANCEL] Proceeding with database cancellation for UUID: ${uuid}, Reason: ${reason}, company_code: ${company_code}`);
+    const result = await this.cancelAttendanceFromDatabase(uuid, actualEmployeeCode, actualEmployeeName, reason, company_code);
     
     logger.info(`Attendance cancelled in ${Date.now() - startTime}ms`);
     return result;
@@ -545,7 +556,7 @@ export class AttendanceService {
   return wasPending;
 }
 
-  private static async autoConfirmFromMemory(uuid: string): Promise<void> {
+  private static async autoConfirmFromMemory(uuid: string, company_code?: string): Promise<void> {
   if (this.isAutoConfirmCancelled(uuid)) {
     logger.info(`Auto-confirm skipped - cancelled in memory: ${uuid}, NOT deleting pendingData yet (needed for cancellation)`);
     return;
@@ -606,7 +617,6 @@ export class AttendanceService {
     this.pendingConfirmations.delete(uuid);
     
     logger.info(`Auto-confirmed: ${uuid} (No S3 upload for successful attendance)`);
-
     });
   } catch (error: any) {
     const errorMsg = error?.message || String(error);
@@ -729,14 +739,24 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
     return { event, record };
     };
 
-    // ✅ USE EXISTING TRANSACTION IF PROVIDED, OTHERWISE CREATE NEW ONE
-    if (existingTransaction) {
-      logger.info(`[CONFIRM] Using existing transaction for UUID: ${data.uuid}`);
-      return await executeTransaction(existingTransaction);
-    } else {
+      const isEntityManager = existingTransaction && typeof existingTransaction.getRepository === 'function';
+      const isCompanyCodeString = existingTransaction && typeof existingTransaction === 'string';
+
+      if (isEntityManager) {
+        logger.info(`[CONFIRM] Using existing transaction for UUID: ${data.uuid}`);
+        return await executeTransaction(existingTransaction);
+      }
+
+      if (isCompanyCodeString) {
+        try {
+          if (!data.company_code) data.company_code = existingTransaction as string;
+        } catch (e) {}
+      }
+
       logger.info(`[CONFIRM] Creating new transaction for UUID: ${data.uuid}`);
-      return await AppDataSource.transaction(executeTransaction);
-    }
+      return await AppDataSource.transaction(async (entityManager) => {
+        return await executeTransaction(entityManager);
+      });
   } catch (error) {
     logger.error('Failed to save confirmed attendance:', error);
     throw error;
@@ -872,7 +892,8 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
   uuid: string, 
   actualEmployeeCode: string, 
   actualEmployeeName: string, 
-  reason: string
+  reason: string,
+  company_code?: string
 ): Promise<any> {
   let transaction: any = null;
   try {
@@ -880,7 +901,7 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
     const attendanceEvent = AppDataSource.getRepository(AttendanceEvent);
     const ProxyLogs = AppDataSource.getRepository(ProxyLog);
     const employee = AppDataSource.getRepository(Employee);
-    logger.info(`[CANCEL] Starting database cancellation for UUID: ${uuid}, Reason: ${reason}`);
+    logger.info(`[CANCEL] Starting database cancellation for UUID: ${uuid}, Reason: ${reason}, company_code: ${company_code}`);
     
     await transaction.connect();
     await transaction.startTransaction();
@@ -888,6 +909,7 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
     const event = await transaction.manager.getRepository(AttendanceEvent)
       .createQueryBuilder('event')
       .where('event.uuid = :uuid', { uuid })
+      .andWhere(company_code ? 'event.company_code = :company_code' : '1=1', { company_code })
       .setLock("pessimistic_write")
       .getOne();
 
@@ -902,7 +924,7 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
       logger.warn(`[CANCEL] Already confirmed for UUID: ${uuid} - cannot cancel`);
       
       const proxyEmployee = await transaction.manager.getRepository(Employee).findOne({
-        where: { employee_code: event.employee_code },
+        where: { employee_code: event.employee_code, company_code: event.company_code },
       });
 
       let s3ImageUrl = null;
@@ -926,6 +948,7 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
         id: uuidv4(),
         uuid: event.uuid,
         timestamp: new Date(),
+        company_code: event.company_code,
         proxy_employee_code: event.employee_code,
         proxy_employee_name: proxyEmployee?.full_name || 'Unknown',
         actual_employee_code: actualEmployeeCode,
@@ -1494,11 +1517,15 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
   }
 
   // 🎯 FIXED CHECK IF UUID IS CANCELLED IN DATABASE
-  private static async isCancelledInDatabase(uuid: string): Promise<boolean> {
+  private static async isCancelledInDatabase(uuid: string, company_code?: string): Promise<boolean> {
     try {
       const attendanceEvents = AppDataSource.getRepository(AttendanceEvent);
+      const whereClause: any = { uuid };
+      if (company_code) {
+        whereClause.company_code = company_code;
+      }
       const event = await attendanceEvents.findOne({
-        where: { uuid },
+        where: whereClause,
         select: ['status']
       });
       return event?.status === AttendanceStatus.CANCELLED;
@@ -1572,14 +1599,18 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
   }
 
   static async getProxyLogs(filters: any = {}): Promise<any> {
-    const { page = 1, limit = 50, start_date, end_date, employee_code } = filters;
+    const { page = 1, limit = 50, start_date, end_date, employee_code, company_code } = filters;
     
-    const cacheKey = `proxy_logs:${page}:${limit}:${start_date}:${end_date}:${employee_code}`;
+    const cacheKey = `proxy_logs:${page}:${limit}:${start_date}:${end_date}:${employee_code}:${company_code}`;
     const cached = await this.cache.get(cacheKey);
     if (cached) return cached;
 
     const offset = (page - 1) * limit;
     const whereClause: any = {};
+
+    if (company_code) {
+      whereClause.company_code = company_code;
+    }
 
     if (start_date && end_date) {
       const start = new Date(start_date);
