@@ -276,6 +276,7 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
   static async getAttendanceReport(req: Request, res: Response): Promise<void> {
    
     try {
+      const company_code = (req as any).user?.company_code;
       const { from_date, to_date, department, page, limit } = req.query;
       logger.info("Received query parameters:", req.query);
 
@@ -287,7 +288,8 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
       const report = await AttendanceService.getAttendanceReport(
         new Date(from_date as string),
         new Date(to_date as string),
-        department as string | undefined,
+        company_code,
+        department as string ,
         Number(page) || 1,
         Number(limit) || 20
       );
@@ -330,7 +332,9 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
    
   static async getFullMonthAttendanceReport(req: Request, res: Response): Promise<void> {
     try {
-      const { from_date, to_date, department } = req.query;
+      const company_code = (req as any).user?.company_code;
+      
+      const { from_date, to_date, department} = req.query;
       logger.info("Fetching full month attendance report:", req.query);
 
       if (!from_date || !to_date) {
@@ -341,9 +345,9 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
       const allRecords = await AttendanceService.getFullMonthAttendanceReport(
         new Date(from_date as string),
         new Date(to_date as string),
-        department as string | undefined
+        company_code,
+        department as string,
       );
-
       res.status(200).json({
         success: true,
         total: allRecords.length,
@@ -361,6 +365,7 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
     try {
       const file = req.file as Express.Multer.File | undefined;
       const { employee_code, event_type } = req.body;
+      const company_code = (req as any).user?.company_code || null;
       const requestedBy = (req as any).user?.loginid || null;
 
       if (!employee_code || !event_type) {
@@ -373,7 +378,7 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      const result = await AttendanceService.createAttendanceRequest(employee_code, event_type, file.buffer, requestedBy);
+      const result = await AttendanceService.createAttendanceRequest(employee_code, event_type,company_code, file.buffer, requestedBy);
       res.status(200).json({ success: true, data: result });
     } catch (error: unknown) {
       logger.error('Create attendance request error', error);
@@ -385,7 +390,13 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
   static async listAttendanceRequests(req: Request, res: Response): Promise<void> {
     try {
       const { page, limit, status } = req.query;
-      const data = await AttendanceService.listAttendanceRequests({ page, limit, status });
+      const company_code = (req as any).user?.company_code || null;
+      const data = await AttendanceService.listAttendanceRequests({ 
+        page, 
+        limit, 
+        status,
+        company_code
+       });
       res.status(200).json({ success: true, data });
     } catch (error: unknown) {
       logger.error('List attendance requests error', error);
@@ -399,6 +410,7 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
       // const { id } = req.params;
       const { id } = req.params as { id: string };
       const approvedBy = (req as any).user?.loginid || 'system';
+      const company_code = (req as any).user?.company_code || null;
       const { notes } = req.body;
 
       if (!id) {
@@ -406,7 +418,7 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      const result = await AttendanceService.approveAttendanceRequest(id, approvedBy, notes);
+      const result = await AttendanceService.approveAttendanceRequest(company_code, id, approvedBy, notes);
       res.status(200).json({ success: true, data: result });
     } catch (error: unknown) {
       logger.error('Approve attendance request error', error);
@@ -420,6 +432,7 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params as { id: string };;
       const approvedBy = (req as any).user?.loginid || 'system';
+      const company_code = (req as any).user?.company_code || null;
       const { notes } = req.body;
 
       if (!id) {
@@ -427,7 +440,7 @@ static async getProxyLogs(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      const result = await AttendanceService.rejectAttendanceRequest(id, approvedBy, notes);
+      const result = await AttendanceService.rejectAttendanceRequest(company_code, id, approvedBy, notes);
       res.status(200).json({ success: true, data: result });
     } catch (error: unknown) {
       logger.error('Reject attendance request error', error);

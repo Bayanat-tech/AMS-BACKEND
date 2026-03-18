@@ -1646,6 +1646,7 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
   static async getAttendanceReport(
     startDate: Date,
     endDate: Date,
+    company_code: string,
     department?: string,
     page: number = 1,
     limit: number = 20
@@ -1665,6 +1666,10 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
 
     let employeeWhereClause = {};
     if (department) employeeWhereClause = { department };
+      if (company_code) {
+        eventWhereClause.company_code = company_code;
+      }
+
 
     const AttendanceReport = AppDataSource.getRepository(AttendanceEvent)
     const [ rows, count ]  = await AttendanceReport.findAndCount({
@@ -1692,6 +1697,7 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
         employee_code: event.employee_code,
         full_name: event.employee?.full_name,
         department: event.employee?.department,
+        company_code: event.company_code,
         position: event.employee?.position,
         date: eventDate.toISOString().split("T")[0], 
         daily_status: event.record?.status,
@@ -1740,6 +1746,7 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
      static async getFullMonthAttendanceReport(
          startDate: Date,
          endDate: Date,
+         company_code: string,
          department?: string
            ): Promise<any[]> {
         // Ensure correct tenant schema before executing TypeORM queries
@@ -1756,6 +1763,11 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
       event_time: Between(adjustedStartDate, adjustedEndDate),
       status: In([AttendanceStatus.CONFIRMED, AttendanceStatus.PENDING]),
      };
+
+    // Add company code filter
+    if (company_code) {
+      eventWhereClause.company_code = company_code;
+    }
 
     // Add department filter if provided
     if (department) {
@@ -1788,6 +1800,7 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
         employee_code: event.employee_code,
         full_name: event.employee?.full_name,
         department: event.employee?.department,
+        company_code: event.company_code,
         position: event.employee?.position,
         date: eventDate.toISOString().split("T")[0],
         daily_status: event.record?.status,
@@ -1804,6 +1817,7 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
   static async createAttendanceRequest(
     employeeCode: string,
     eventType: 'check_in' | 'check_out',
+    company_code: string,
     imageBuffer: Buffer,
     requestedBy: string 
   ): Promise<any> {
@@ -1849,11 +1863,15 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
   }
 
   static async listAttendanceRequests(filters: any = {}): Promise<any> {
-    const { page = 1, limit = 50, status } = filters;
+    const { page = 1, limit = 50, status, company_code } = filters;
     const repo = AppDataSource.getRepository(AttendanceRequest);
     const skip = (page - 1) * limit;   
 
     const whereClause: any = {};
+
+     if(company_code) {
+      whereClause.company_code = company_code;
+     }
 
      if (status && status !== 'ALL') {
         whereClause.status = status;
@@ -1874,7 +1892,7 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
 
 
   // Approve an attendance request: create AttendanceEvent and mark request approved
-  static async approveAttendanceRequest(requestId: string, approvedBy: string, notes?: string): Promise<any> {
+  static async approveAttendanceRequest(company_code: string, requestId: string, approvedBy: string, notes?: string): Promise<any> {
    // await ensureCorrectSchema();
     const repo = AppDataSource.getRepository(AttendanceRequest);
     const request = await repo.findOne({ where: { id: requestId } });
@@ -1885,6 +1903,7 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
     const empRepo = AppDataSource.getRepository(Employee);
     const employee = await empRepo.findOne({ where: { employee_id: request.employee_id } });
     if (!employee) throw new Error('Employee not found');
+    if (request.company_code !== company_code) throw new Error('Unauthorized');
 
     // Transaction: create AttendanceEvent and update request
     //const queryRunner = AppDataSource.createQueryRunner();
@@ -1923,16 +1942,17 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
     }
   }
 
-  static async rejectAttendanceRequest(requestId: string, rejectedBy: string, notes?: string): Promise<any> {
+  static async rejectAttendanceRequest(company_code: string, requestId: string, rejectedBy: string, notes?: string): Promise<any> {
     //await ensureCorrectSchema();
      const repo = AppDataSource.getRepository(AttendanceRequest);
-     const request = await repo.findOne({ where: { id: requestId } });
+     const request = await repo.findOne({ where: { id: requestId, company_code } });
     if (!request) throw new Error('Request not found');
     if (request.status !== AttendanceRequestStatus.PENDING) throw new Error('Request not pending');
 
    // Simply update the status — NO attendance_event insert at all
      request.status = AttendanceRequestStatus.REJECTED;
      request.rejected_by = rejectedBy; 
+     request.company_code = company_code;
      request.approved_at = new Date();
      request.notes = notes || null;
 
