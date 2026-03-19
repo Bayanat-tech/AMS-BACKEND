@@ -415,7 +415,8 @@ async function getLeaveBalances(employeeId: string, leaveType: string) {
 
   // Bulk insert multiple attendance events
   bulkInsertAttendanceEvents: async (
-    requests: AttendanceEvent[]
+    requests: AttendanceEvent[],
+    companyCode: string = 'BSG'
   ): Promise<BulkInsertResponse> => {
     try {
       // Transform each request to match .NET API expectations
@@ -432,11 +433,16 @@ async function getLeaveBalances(employeeId: string, leaveType: string) {
       }));
 
       console.log(`Bulk inserting ${payload.length} attendance events`);
+      let endpoint = "/api/EmployeeLeave/bulkInsertAttendanceEvents"; // default BSG
+      if (companyCode && companyCode.toUpperCase() === 'BTIND') {
+        endpoint = "/api/BayanDb//bulkInsertAttendanceEvents_bayanatdb";
+      } else if (companyCode && companyCode.toUpperCase() === 'JASRA') {
+        endpoint = "/api/JasraDb/jasra/bulkInsertAttendanceEvents_bayanatdb";
+      }
 
-      const response = await axiosInstance.post(
-        "/api/EmployeeLeave/bulkInsertAttendanceEvents",
-        payload
-      );
+      console.log(`Calling HR API endpoint ${endpoint} for company ${companyCode}`);
+
+      const response = await axiosInstance.post(endpoint, payload);
 
       console.log("Bulk attendance events API Response:", {
         status: response.status,

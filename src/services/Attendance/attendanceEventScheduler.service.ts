@@ -48,40 +48,53 @@ export class AttendanceEventScheduler {
 
       logger.info(`Found ${unsentEvents.length} unsent attendance events`);
 
-      const eventsToSend = unsentEvents.map((event: any) => ({
-        id: event.id,
-        employeeId: event.employee_id,
-        employeeCode: event.employee_code,
-        attendanceRecordId: event.attendance_record_id ?? undefined,
-        eventTime: event.event_time,
-        eventType: event.event_type,
-        createdAt: event.created_at,
-      }));
+      //events by company_code so we call the correct HR API per company schema
+      const groups: Record<string, any[]> = {};
+      for (const ev of unsentEvents) {
+        const comp = (ev.company_code || 'BSG').toString();
+        if (!groups[comp]) groups[comp] = [];
+        groups[comp].push(ev);
+      }
 
-      const result = await HrService.bulkInsertAttendanceEvents(eventsToSend);
-      if (result && result.successfulInserts > 0) {
-        const eventIds = unsentEvents.map((event: any) => event.id);
-        const transferDate = new Date();
+      for (const [companyCode, events] of Object.entries(groups)) {
+        try {
+          logger.info(`Processing ${events.length} events for company ${companyCode}`);
 
-        logger.info(`Updating ${eventIds.length} records with DATA_TRANSFER = 'Y'`);
+          const eventsToSend = events.map((event: any) => ({
+            id: event.id,
+            employeeId: event.employee_id,
+            employeeCode: event.employee_code,
+            attendanceRecordId: event.attendance_record_id ?? undefined,
+            eventTime: event.event_time,
+            eventType: event.event_type,
+            createdAt: event.created_at,
+          }));
 
-        for (const eventId of eventIds) {
-          await attendanceRepository.update(
-            { id: eventId },
-            {
-              data_transfer: DataTransferFlag.Y,
-              transfer_date: transferDate,
+          const result = await HrService.bulkInsertAttendanceEvents(eventsToSend, companyCode);
+
+          if (result && result.successfulInserts > 0) {
+            const eventIds = events.map((e: any) => e.id);
+            const transferDate = new Date();
+
+            logger.info(`Updating ${eventIds.length} records with DATA_TRANSFER = 'Y' for ${companyCode}`);
+
+            for (const eventId of eventIds) {
+              await attendanceRepository.update(
+                { id: eventId },
+                {
+                  data_transfer: DataTransferFlag.Y,
+                  transfer_date: transferDate,
+                }
+              );
             }
-          );
-        }
 
-        logger.info(
-          `Successfully processed ${unsentEvents.length} attendance events. DATA_TRANSFER updated to 'Y'.`
-        );
-      } else {
-        logger.error(
-          `API call completed but reported a failure: ${result.message}`
-        );
+            logger.info(`Successfully processed ${events.length} attendance events for ${companyCode}. DATA_TRANSFER updated to 'Y'.`);
+          } else {
+            logger.error(`API call returned failure for ${companyCode}: ${result?.message}`);
+          }
+        } catch (err: any) {
+          logger.error(`Error processing events for company ${companyCode}:`, err);
+        }
       }
     } catch (error: any) {
       logger.error("Error processing unsent attendance events:", error);
