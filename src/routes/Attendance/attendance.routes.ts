@@ -8,7 +8,13 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Lazy load controllers
-const getControllers = async () => {
+const getControllers = async (): Promise<{
+  AttendanceController: typeof AttendanceController;
+  EmployeeController: any;
+  DashboardController: any;
+  checkUserAuthorization: any;
+  EmployeeService: any;
+}> => {
   const { AttendanceController } = await import(
     "../../controllers/Attendance/attendance.controller"
   );
