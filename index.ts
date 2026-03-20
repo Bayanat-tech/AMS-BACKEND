@@ -49,13 +49,22 @@ async function startServerWithTypeORM() {
     console.log("Initializing TypeORM and Oracle connections...");
 
     const connectionPromise = initializeAllConnections();
-    
+
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Database connection timeout (30s)")), 30000)
     );
 
-    await Promise.race([connectionPromise, timeoutPromise]);
-    await initializeAllConnections();
+    try {
+      await Promise.race([connectionPromise, timeoutPromise]);
+    } catch (err) {
+      console.warn(
+        "continuing startup while connections initialize in background",
+        err instanceof Error ? err.message : String(err)
+      );
+      connectionPromise.catch((e) =>
+        console.error("Background DB initialization failed:", e)
+      );
+    }
     await AttendanceEventScheduler.initializeScheduler();
 
     app.listen(PORT, () => {
