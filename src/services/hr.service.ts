@@ -435,7 +435,7 @@ async function getLeaveBalances(employeeId: string, leaveType: string) {
       console.log(`Bulk inserting ${payload.length} attendance events`);
       let endpoint = "/api/EmployeeLeave/bulkInsertAttendanceEvents"; // default BSG
       if (companyCode && companyCode.toUpperCase() === 'BTIND') {
-        endpoint = "/api/BayanDb//bulkInsertAttendanceEvents_bayanatdb";
+        endpoint = "/api/BayanDb/bulkInsertAttendanceEvents_bayanatdb";
       } else if (companyCode && companyCode.toUpperCase() === 'JASRA') {
         endpoint = "/api/JasraDb/jasra/bulkInsertAttendanceEvents_bayanatdb";
       }
