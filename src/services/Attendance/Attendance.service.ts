@@ -649,11 +649,19 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
       const attendanceRecord = entity.getRepository(AttendanceRecord);
       const attendanceEvent = entity.getRepository(AttendanceEvent);
 
-    let record = await attendanceRecord.findOne({ 
-      where: { 
-        employee_id: data.employee_id, 
-        record_date: today, },
-    });
+      // Lock the attendance event row first to ensure a consistent lock order
+      // across different code paths and avoid deadlocks (ORA-00060).
+      const lockedEvent = await attendanceEvent
+        .createQueryBuilder('event')
+        .where('event.uuid = :uuid', { uuid: data.uuid })
+        .setLock('pessimistic_write')
+        .getOne();
+
+      let record = await attendanceRecord.findOne({ 
+        where: { 
+          employee_id: data.employee_id, 
+          record_date: today, },
+      });
     if (!record) {
        record = attendanceRecord.create({
         id: uuidv4(),
@@ -692,8 +700,8 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
 
     }
 
-    let event: AttendanceEvent | null;
-    event = await attendanceEvent.findOne({ where: { uuid: data.uuid } });
+    // Use the previously locked event if present
+    let event: AttendanceEvent | null = lockedEvent || null;
 
     if (!event) {
       const eventData: Partial<AttendanceEvent> = {
@@ -725,7 +733,7 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
 
       event = attendanceEvent.create(eventData);
       await attendanceEvent.save(event);
-    } else {
+      } else {
       await attendanceEvent.update(
         { id: event.id },
         {

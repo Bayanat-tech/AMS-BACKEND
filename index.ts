@@ -66,6 +66,28 @@ async function startServerWithTypeORM() {
       );
     }
     await AttendanceEventScheduler.initializeScheduler();
+      try {
+        console.log('Preloading face recognition models (FaceRecognitionService)...');
+        await FaceRecognitionService.getInstance();
+        if (typeof FaceRecognitionService.warmUp === 'function') {
+          await FaceRecognitionService.warmUp();
+        }
+        console.log('Face recognition models preloaded');
+      } catch (modelErr) {
+        console.warn('Face recognition model preload failed, continuing startup:', modelErr instanceof Error ? modelErr.message : modelErr);
+      }
+
+      // Also ensure AttendanceService initialises its dependencies (lazy init) to reduce first-request latency.
+      try {
+        console.log('Preloading AttendanceService face dependencies...');
+        await Promise.race([
+          AttendanceService.initializeFaceService(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('AttendanceService preload timed out')), 20000))
+        ]);
+        console.log('AttendanceService face dependencies preloaded');
+      } catch (attErr) {
+        console.warn('AttendanceService preload failed or timed out, continuing startup:', attErr instanceof Error ? attErr.message : attErr);
+      }
 
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);

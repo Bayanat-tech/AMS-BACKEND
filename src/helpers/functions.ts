@@ -48,7 +48,7 @@ export const generateToken = async (args: GenerateTokenInterface) => {
     },
     constants.AUTHENTICATION.APP_SECRET,
     {
-      expiresIn: "24h",
+      expiresIn: "30d",
     }
   );
   return token;

@@ -103,6 +103,7 @@ export class FaceRecognitionService {
   private static instance: FaceRecognitionService;
   private static isInitialized = false;
   public modelsLoaded = false;
+  
  
   private readonly tinyFaceDetectorOptions =
     new faceapi.TinyFaceDetectorOptions({
@@ -127,6 +128,8 @@ export class FaceRecognitionService {
     }
     return FaceRecognitionService.instance;
   }
+
+  
  
   private static async initialize(): Promise<void> {
     if (FaceRecognitionService.isInitialized) return;
@@ -149,10 +152,34 @@ export class FaceRecognitionService {
         tfjsNodeAttempted = true;
         if (process.env.ENABLE_TFJS_NODE !== "false") {
           try {
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
-            require("@tensorflow/tfjs-node");
-            tfjsNodeLoaded = true;
-            logger.info("Optional @tensorflow/tfjs-node loaded (native backend).");
+            // Temporarily suppress noisy console messages emitted by tfjs during
+            // native addon registration (these cause repeated stderr lines).
+            const origWarn = console.warn;
+            const origError = console.error;
+            console.warn = (...args: any[]) => {
+              try {
+                const s = args.map(String).join(" ");
+                if (/backend was already registered|already been set|tfjs_binding.node/i.test(s)) return;
+              } catch (e) {}
+              origWarn.apply(console, args as any);
+            };
+            console.error = (...args: any[]) => {
+              try {
+                const s = args.map(String).join(" ");
+                if (/backend was already registered|already been set|tfjs_binding.node/i.test(s)) return;
+              } catch (e) {}
+              origError.apply(console, args as any);
+            };
+
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              require("@tensorflow/tfjs-node");
+              tfjsNodeLoaded = true;
+              logger.info("Optional @tensorflow/tfjs-node loaded (native backend).");
+            } finally {
+              console.warn = origWarn;
+              console.error = origError;
+            }
           } catch (err: any) {
             tfjsNodeLoaded = false;
             logger.warn(
@@ -160,7 +187,8 @@ export class FaceRecognitionService {
                 "If you want the native addon, run: npm rebuild @tensorflow/tfjs-node build-addon-from-source " +
                 "and see https://github.com/tensorflow/tfjs/blob/master/tfjs-node/WINDOWS_TROUBLESHOOTING.md for troubleshooting."
             );
-            logger.debug(err?.stack || err);
+            // Only log concise error message to avoid excessive stack traces
+            logger.debug(err?.message || String(err));
           }
         } else {
           logger.info("Skipping attempt to load @tensorflow/tfjs-node (ENABLE_TFJS_NODE=false). Using JS backend.");
@@ -216,6 +244,7 @@ export class FaceRecognitionService {
         faceapi.nets.faceLandmark68TinyNet.loadFromDisk(modelPath),
         faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath),
       ]);
+      this.modelsLoaded = true;
  
       this.modelsLoaded = true;
       // expose instance flag
@@ -445,7 +474,7 @@ const labeledDescriptors = Array.from(grouped.entries()).map(
       const img = new Image();
       img.src = processedImage;
       const input = faceapi.createCanvasFromMedia(img as any);
- 
+
       const detections = await faceapi.detectAllFaces(
         input,
         this.tinyFaceDetectorOptions
