@@ -14,7 +14,6 @@ import { AttendanceEvent, AttendanceEventType, AttendanceStatus, DataTransferFla
 import { ProxyLog } from "../../entity/Attendance/ProxyLog.entity";
 import { EmployeeFace } from "../../entity/Attendance/employee_face.entity";
 import { AttendanceRequest, AttendanceRequestStatus } from "../../entity/Attendance/attendance_request.entity";
-//import { ensureCorrectSchema, ensureCorrectSchemaOnQueryRunner } from "../../database/TypeORMTenantInterceptor";
   
 const AUTO_CONFIRM_DELAY_MS = 10000; 
 const FACE_RECOGNITION_TIMEOUT = 2500;
@@ -36,6 +35,7 @@ export class AttendanceService {
   private static pendingConfirmations = new Map();
   private static cancelledConfirmations = new Set<string>();
   private static faceService: FaceRecognitionService | null = null;
+  private static confirmingUuids = new Set<string>();
   private static concurrentRequests = 0;
 
   static async initializeFaceService(): Promise<void> {
@@ -55,22 +55,23 @@ export class AttendanceService {
   private static releaseRequestSlot(): void {
     this.concurrentRequests = Math.max(0, this.concurrentRequests - 1);
   }
-  static async markAttendanceWithAutoConfirm(
+static async markAttendanceWithAutoConfirm(
   employeeId: string,
   action: "check-in" | "check-out",
   imageBuffer: Buffer,
   locationData?: any,
-  company_code?: string
-): Promise<{ 
-  status: string; 
-  timestamp: Date; 
-  employeeCode: string; 
+  company_code?: string,
+  preComputedConfidence?: number 
+): Promise<{
+  status: string;
+  timestamp: Date;
+  employeeCode: string;
   employeeName: string;
   employeeFirstName: string;
   uuid: string;
   confidence: number;
   requiresConfirmation: boolean;
-  recognizedEmployee: any; 
+  recognizedEmployee: any;
   autoConfirmDelay: number;
 }> {
   const startTime = Date.now();
@@ -81,10 +82,14 @@ export class AttendanceService {
     throw new Error("System busy. Please try again.");
   }
 
-  try {
+    try {
+    const confidenceTask = preComputedConfidence !== undefined
+      ? Promise.resolve(preComputedConfidence)
+      : this.calculateFaceConfidenceBalanced(employeeId, imageBuffer, company_code);
+
     const [employee, confidence] = await Promise.all([
       this.getEmployeeWithCache(employeeId, company_code),
-      this.calculateFaceConfidenceBalanced(employeeId, imageBuffer, company_code),
+      confidenceTask,
     ]);
 
     if (!employee) {
@@ -159,14 +164,8 @@ export class AttendanceService {
       }
     }, AUTO_CONFIRM_DELAY_MS);
 
-    // pendingData.autoConfirmTimer = autoConfirmTimer;
-    // this.pendingConfirmations.set(uuid, pendingData);
     pendingData.autoConfirmTimer = autoConfirmTimer as ReturnType<typeof setTimeout>;
     this.pendingConfirmations.set(uuid, pendingData);
-
-    // ✅ DO NOT UPLOAD IMAGE HERE - ONLY UPLOAD IF ATTENDANCE IS CANCELLED (PROXY)
-    // Image buffer is kept in memory (pendingData.image_buffer) for use during cancellation
-    
     this.saveAttendanceToDatabase(pendingData)
       .catch(err => logger.error('Background database save failed:', err));
 
@@ -200,56 +199,28 @@ export class AttendanceService {
   }
 }
 
-  private static async calculateFaceConfidenceBalanced(employeeId: string, imageBuffer: Buffer, company_code?: string): Promise<number> {
-    try {
-      if (!this.faceService) {
-        await this.initializeFaceService();
-      }
+  private static async calculateFaceConfidenceBalanced(
+  employeeId: string,
+  imageBufferOrDescriptor: Buffer | Float32Array,
+  company_code?: string
+): Promise<number> {
+  try {
+    if (!this.faceService) await this.initializeFaceService();
+    if (!this.faceService) return 85;
 
-      if (!this.faceService) {
-        logger.warn('Face service not available, using default confidence');
-        return 85;
-      }
-
-      let retries = 2; 
-      while (retries > 0) {
-        try {
-          const extractionPromise = this.faceService.extractFaceDescriptor(imageBuffer);
-          const timeoutPromise = new Promise<null>((resolve) => 
-            setTimeout(() => resolve(null), FACE_RECOGNITION_TIMEOUT)
-          );
-
-          const descriptor = await Promise.race([extractionPromise, timeoutPromise]);
-          
-          if (descriptor) {
-            const matchingPromise = this.faceService.findBestMatch(descriptor);
-            const matchTimeoutPromise = new Promise<{confidence: number}>((resolve) => 
-              setTimeout(() => resolve({confidence: 85}), 1000)
-            );
-
-            const match = await Promise.race([matchingPromise, matchTimeoutPromise]);
-            return Math.max(match?.confidence || 85, MIN_CONFIDENCE_THRESHOLD);
-          }
-          
-          retries--;
-          if (retries > 0) {
-            logger.info(`Face detection failed, retrying... ${retries} attempts left`);
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-        } catch (error) {
-          retries--;
-          if (retries === 0) throw error;
-        }
-      }
-
-      logger.warn('Face detection failed after retries, using high confidence fallback');
-      return 88;
-
-    } catch (error) {
-      logger.warn('Face confidence calculation failed, using high confidence fallback:', error);
-      return 85;
+    if (imageBufferOrDescriptor instanceof Float32Array) {
+      const match = await this.faceService.findBestMatch(imageBufferOrDescriptor);
+      return Math.max(match?.confidence ?? 85, MIN_CONFIDENCE_THRESHOLD);
     }
+
+    const descriptor = await this.faceService.extractFaceDescriptor(imageBufferOrDescriptor);
+    const match = await this.faceService.findBestMatch(descriptor);
+    return Math.max(match?.confidence ?? 85, MIN_CONFIDENCE_THRESHOLD);
+  } catch (error) {
+    logger.warn("Face confidence calculation failed, using fallback:", error);
+    return 85;
   }
+}
 
   private static getFirstName(fullName: string): string {
     return fullName.split(' ')[0] || fullName;
@@ -338,6 +309,16 @@ export class AttendanceService {
   }
 
   try {
+    // ─── LOCK: prevent double confirmation from concurrent flows
+    if (this.confirmingUuids.has(uuid)) {
+      logger.warn(`[SERVICE-CONFIRM] UUID ${uuid} already being confirmed — waiting briefly and returning DB state`);
+      await new Promise(r => setTimeout(r, 500));
+      const event = await AppDataSource.getRepository(AttendanceEvent).findOne({ where: { uuid } });
+      return { found: !!event, alreadyProcessed: event?.status !== AttendanceStatus.PENDING, status: event?.status };
+    }
+
+    this.confirmingUuids.add(uuid);
+
     if (this.isAutoConfirmCancelled(uuid) || await this.isCancelledInDatabase(uuid, company_code)) {
       logger.warn(`[SERVICE-CONFIRM] UUID ${uuid} has been cancelled`);
       throw new Error("Attendance has been cancelled");
@@ -370,6 +351,7 @@ export class AttendanceService {
     logger.error('❌ [SERVICE-CONFIRM] Confirmation failed for UUID: ' + uuid, error);
     throw error;
   } finally {
+    this.confirmingUuids.delete(uuid);
     this.releaseRequestSlot();
   }
   }
@@ -457,12 +439,23 @@ export class AttendanceService {
         await attendanceRecordRepo.update( { id: record.id }, updates);
       }
 
-      await attendanceEventRepo.update({ id: event.id }, {
-        status: AttendanceStatus.CONFIRMED,
-        confirmed_by: confirmedBy,
-        confirmed_at: now,
-        attendance_record_id: record.id
-      });
+      const updateResult = await attendanceEventRepo
+        .createQueryBuilder()
+        .update(AttendanceEvent)
+        .set({
+          status: AttendanceStatus.CONFIRMED,
+          confirmed_by: confirmedBy,
+          confirmed_at: now,
+          attendance_record_id: record.id
+        })
+        .where('id = :id AND status = :status', { id: event.id, status: AttendanceStatus.PENDING })
+        .execute();
+
+      if (!updateResult.affected || updateResult.affected === 0) {
+        await transaction.rollbackTransaction();
+        logger.info(`[CONFIRM] UUID ${uuid} already processed by another process`);
+        return { found: true, alreadyProcessed: true, status: event.status, event, record };
+      }
 
       await transaction.commitTransaction();
       logger.info(`✅ Attendance confirmed: ${uuid}`);
@@ -557,6 +550,13 @@ export class AttendanceService {
 }
 
   private static async autoConfirmFromMemory(uuid: string, company_code?: string): Promise<void> {
+  // If manual confirmation is already in progress, skip auto-confirm
+  if (this.confirmingUuids.has(uuid)) {
+    logger.info(`[AUTO-CONFIRM] UUID ${uuid} already being confirmed manually — skipping auto`);
+    this.pendingConfirmations.delete(uuid);
+    return;
+  }
+
   if (this.isAutoConfirmCancelled(uuid)) {
     logger.info(`Auto-confirm skipped - cancelled in memory: ${uuid}, NOT deleting pendingData yet (needed for cancellation)`);
     return;
@@ -572,6 +572,14 @@ export class AttendanceService {
     logger.info(`Auto-confirm skipped - already marked cancelled: ${uuid}, keeping pendingData for cancellation handler`);
     return;
   }
+
+  // Acquire lock for auto-confirm to prevent races with manual confirms
+  if (this.confirmingUuids.has(uuid)) {
+    logger.info(`[AUTO-CONFIRM] UUID ${uuid} already being confirmed — aborting auto-confirm`);
+    return;
+  }
+
+  this.confirmingUuids.add(uuid);
 
   let transaction;
   try {
@@ -637,6 +645,8 @@ export class AttendanceService {
     } else {
       logger.error(`[AUTO-CONFIRM] Failed for ${uuid}:`, error);
     }
+  } finally {
+    this.confirmingUuids.delete(uuid);
   }
 }
 
@@ -734,15 +744,22 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
       event = attendanceEvent.create(eventData);
       await attendanceEvent.save(event);
       } else {
-      await attendanceEvent.update(
-        { id: event.id },
-        {
+      const updateResult = await attendanceEvent.createQueryBuilder()
+        .update(AttendanceEvent)
+        .set({
           status: AttendanceStatus.CONFIRMED,
           data_transfer: DataTransferFlag.N,
           confirmed_by: confirmedBy,
           confirmed_at: new Date(),
           attendance_record_id: record.id
-        });
+        })
+        .where('id = :id AND status = :status', { id: event.id, status: AttendanceStatus.PENDING })
+        .execute();
+
+      if (!updateResult.affected || updateResult.affected === 0) {
+        logger.info(`[CONFIRM] UUID ${data.uuid} already confirmed by another process — skipping insert/update`);
+        return { event, record, alreadyConfirmed: true };
+      }
     } 
     return { event, record };
     };

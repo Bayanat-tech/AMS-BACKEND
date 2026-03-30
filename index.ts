@@ -1,6 +1,6 @@
 import cors from "cors";
 import express, { Request, Response } from "express";
-import { initializeAllConnections } from "./src/database/connection";
+import { initializeAllConnections, AppDataSource } from "./src/database/connection";
 import "./src/utils/passport";
 
 const app = express();
@@ -37,68 +37,88 @@ app.use("/api/notification", logRoutes);
 
 app.use("/api/attendance", attendanceRoutes);
 
+let serverReady = false;
+
 app.get("/health", (req: Request, res: Response) => {
+  if (!serverReady) {
+    res.status(503).json({ status: "starting", message: "Models loading or DB connecting" });
+    return;
+  }
   res.status(constants.STATUS_CODES.OK).send("Server is up and running.");
   return;
 });
 
 const PORT = process.env.PORT || 3500;
 
+// Server will start after initialization completes so startup logs
+// show models/DB readiness in order.
+
 async function startServerWithTypeORM() {
   try {
-    console.log("Initializing TypeORM and Oracle connections...");
+    console.log("Initializing DB and face models in parallel...");
 
-    const connectionPromise = initializeAllConnections();
+    // Run DB and face model loading truly in parallel
+    // facePromise does NOT need DB — safe to run concurrently
+    const [faceResult, dbResult] = await Promise.allSettled([
+      FaceRecognitionService.getInstance(),   // loads models + warm-up only, no DB
+      initializeAllConnections(),             // DB handshake
+    ]);
 
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Database connection timeout (30s)")), 30000)
-    );
+    if (faceResult.status === "fulfilled") {
+      console.log("✅ Face recognition models ready");
+    } else {
+      console.warn("⚠️  Face model load failed (non-fatal):", faceResult.reason?.message);
+    }
+
+    if (dbResult.status === "fulfilled") {
+      console.log("✅ Database ready");
+    } else {
+      console.warn("⚠️  DB init failed (non-fatal):", dbResult.reason?.message);
+    }
+
+    await waitForTypeORM(60000);
+    if (faceResult.status === "fulfilled") {
+      try {
+        const faceService = await FaceRecognitionService.getInstance();
+        await faceService.refreshDescriptorStore();
+        console.log("✅ Face descriptor store loaded");
+      } catch (e: any) {
+        console.warn("⚠️  Descriptor store failed (will lazy-load on first request):", e?.message);
+      }
+    }
 
     try {
-      await Promise.race([connectionPromise, timeoutPromise]);
-    } catch (err) {
-      console.warn(
-        "continuing startup while connections initialize in background",
-        err instanceof Error ? err.message : String(err)
-      );
-      connectionPromise.catch((e) =>
-        console.error("Background DB initialization failed:", e)
-      );
+      await AttendanceEventScheduler.initializeScheduler();
+      console.log("✅ Attendance scheduler ready");
+    } catch (e: any) {
+      console.warn("⚠️  Scheduler init failed (non-fatal):", e?.message);
     }
-    await AttendanceEventScheduler.initializeScheduler();
-      try {
-        console.log('Preloading face recognition models (FaceRecognitionService)...');
-        await FaceRecognitionService.getInstance();
-        if (typeof FaceRecognitionService.warmUp === 'function') {
-          await FaceRecognitionService.warmUp();
-        }
-        console.log('Face recognition models preloaded');
-      } catch (modelErr) {
-        console.warn('Face recognition model preload failed, continuing startup:', modelErr instanceof Error ? modelErr.message : modelErr);
-      }
 
-      // Also ensure AttendanceService initialises its dependencies (lazy init) to reduce first-request latency.
-      try {
-        console.log('Preloading AttendanceService face dependencies...');
-        await Promise.race([
-          AttendanceService.initializeFaceService(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('AttendanceService preload timed out')), 20000))
-        ]);
-        console.log('AttendanceService face dependencies preloaded');
-      } catch (attErr) {
-        console.warn('AttendanceService preload failed or timed out, continuing startup:', attErr instanceof Error ? attErr.message : attErr);
-      }
-
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-      console.log(`TypeORM is ready for model conversion`);
+    serverReady = true;
+    const server = app.listen(PORT, () => {
+      console.log(`✅ Server running on port ${PORT}`);
     });
-  
+
+    server.on('error', (err: any) => {
+      console.error('HTTP server error:', err instanceof Error ? err.stack : err);
+    });
+
   } catch (err) {
-    console.error("Error in database connection:", err);
-    console.error("Full error:", err instanceof Error ? err.stack : String(err));
+    console.error("Startup failed:", err instanceof Error ? err.stack : err);
     process.exit(1);
   }
+}
+
+async function waitForTypeORM(timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (AppDataSource.isInitialized) {
+      console.log("✅ TypeORM confirmed initialized");
+      return;
+    }
+    await new Promise(r => setTimeout(r, 500));
+  }
+  console.warn("⚠️  TypeORM not confirmed within timeout — descriptors will lazy-load");
 }
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -106,4 +126,13 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-startServerWithTypeORM();
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err instanceof Error ? err.stack : err);
+  process.exit(1);
+});
+
+startServerWithTypeORM().catch(err => {
+  console.error('Fatal startup error:', err);
+  process.exit(1);
+});
+

@@ -5,10 +5,11 @@ import { validateImage } from "../../middleware/security.middleware";
 import logger from "../../utils/logger";
 
 try {
-  require('@tensorflow/tfjs-node');
-  logger.info('tfjs-node backend loaded for face-api');
+  // Do not load tfjs-node here: the FaceRecognitionService handles
+  // loading `@tensorflow/tfjs-node` centrally during initialization.
 } catch (err) {
-  logger.warn('tfjs-node not available or failed to load (you can install @tensorflow/tfjs-node for faster inference):', err);
+  // keep file valid if surrounding try/catch expected elsewhere
+  logger.debug('attendance.controller top-level init catch', err);
 }
 
 export class AttendanceController {
@@ -26,7 +27,7 @@ static async markAttendance(req: Request, res: Response): Promise<void> {
         action, 
         latitude, 
         longitude, 
-        accuracy, 
+        accuracy,                
         locationType, 
         address, 
         officeName 
@@ -111,12 +112,14 @@ static async markAttendance(req: Request, res: Response): Promise<void> {
       }
 
       // Use new auto-confirm method
+      // Forward pre-computed confidence to avoid second extraction in service
       const result = await AttendanceService.markAttendanceWithAutoConfirm(
         match.employeeId,
         action,
         file.buffer,
         locationData,
-        company_code
+        company_code,
+        match.confidence           // ← pass pre-computed confidence
       );
 
       res.status(200).json({
