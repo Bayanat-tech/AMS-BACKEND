@@ -788,7 +788,7 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
   }
 }
 
-  static async logProxyAttempt(data: any, actualEmployeeCode: string, actualEmployeeName: string, reason: string): Promise<any> {
+  static async logProxyAttempt(data: any, actualEmployeeCode: string, actualEmployeeName: string, reason: string, company_code?: string): Promise<any> {
     const transaction = AppDataSource.createQueryRunner();
     await transaction.connect();
     await transaction.startTransaction();
@@ -805,6 +805,7 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
           id: uuidv4(),
           employee_id: data.employee_id,
           employee_code: data.employee_code,
+          company_code: company_code || data.company_code,
           event_time: data.timestamp,
           event_type: data.action === "check-in" ? "check_in" : "check_out",
           data_transfer: "N",
@@ -1032,6 +1033,7 @@ private static async saveConfirmedAttendance(data: any, confirmedBy: string, exi
         timestamp: new Date(),
         proxy_employee_code: event.employee_code,
         proxy_employee_name: proxyEmployee?.full_name || 'Unknown',
+        company_code: event.company_code,
         actual_employee_code: actualEmployeeCode,
         actual_employee_name: actualEmployeeName,
         confidence: event.confidence ?? 0,
@@ -1289,7 +1291,7 @@ private static async sendLateCancellationEmail(proxyLog: any, actualEmployeeCode
       image_available: !!proxyLog.s3_image_url
     };
 
-    const adminEmails = ["Srishti.nayal@bayanattechnology.com"];
+    const adminEmails = ["Sagar.b@bayanattechnology.com", "salim.alsaltiy@almadinalogistics.onmicrosoft.com"];
    
     const lateCancellationHtml = `
 <!DOCTYPE html>
@@ -1402,7 +1404,7 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
       event_type: data.action === "check-in" ? "Check In" : "Check Out"
     };
 
-    const adminEmails = ["Srishti.nayal@bayanattechnology.com"];
+    const adminEmails = ["Sagar.b@bayanattechnology.com" ,"salim.alsaltiy@almadinalogistics.onmicrosoft.com"];
 
     logger.info(`[EMAIL] Sending to: ${adminEmails.join(', ')}`);
     logger.info(`[EMAIL] Proxy data:`, {
@@ -1483,7 +1485,7 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
         image_available: !!proxyLog.s3_image_url
       };
 
-      const adminEmails = ["Srishti.nayal@bayanattechnology.com"];
+      const adminEmails = ["Sagar.b@bayanattechnology.com","salim.alsaltiy@almadinalogistics.onmicrosoft.com"];
 
       logger.info(`[EMAIL] Calling notifyUser with admin emails: ${adminEmails.join(',')} for UUID: ${proxyLog.uuid}`);
       
@@ -1648,6 +1650,11 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
     if (employee_code) {
       whereClause.proxy_employee_code = employee_code;
     }
+
+    console.log('whereClause:', JSON.stringify(whereClause));
+    console.log('company_code value:', company_code, typeof company_code);
+    console.log('filters received:', JSON.stringify(filters));
+
     const AttendanceLog = AppDataSource.getRepository(ProxyLog);
     const [ rows, count ]  = await AttendanceLog.findAndCount({
       where: whereClause,
@@ -1874,6 +1881,7 @@ static async sendProxyAlertEmailWithImage(data: any, actualEmployeeCode: string,
       id: uuid,
       employee_id: employee.employee_id,
       employee_code: employee.employee_code,
+      company_code: company_code,
       requested_by: resolvedRequestedBy,
       event_type: eventType,
       event_time: now,

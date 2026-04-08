@@ -1472,7 +1472,7 @@ export const notifyUser = async (args: SendEmailInterface) => {
     from: constants.ENV.EMAIL_USER,
     to: request_users, 
     cc: [
-      //'prem@bayanattechnology.com'
+      'prem@bayanattechnology.com'
     ],
     subject: subject || `🚨 PROXY ATTENDANCE DETECTED - ${proxyData?.timestamp ? new Date(proxyData.timestamp).toLocaleDateString() : new Date().toLocaleDateString()}`,
     html: htmlMessage || defaultProxyHtml,
