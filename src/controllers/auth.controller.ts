@@ -6,6 +6,7 @@ import {
   generateToken,
   notifyUser,
 } from "../helpers/functions";
+import { generateRefreshToken, verifyRefreshToken, ttlToMs } from "../helpers/functions";
 import { loginSchema } from "../validation/auth.validation";
 import { StructuredResult } from "../interfaces/auth.interface";
 import { RequestWithUser } from "../interfaces/common.interface";
@@ -106,6 +107,26 @@ export const login = async (req: Request, res: Response) => {
       email_id: user.email_id,
       loginid: user.loginid,
     });
+    // create refresh token and set as httpOnly cookie
+    try {
+      const refreshToken = await generateRefreshToken({
+        username: user.username,
+        email_id: user.email_id,
+        loginid: user.loginid,
+      });
+
+      const cookieOptions: any = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        path: "/",
+      };
+      const maxAge = ttlToMs((constants.AUTHENTICATION as any).REFRESH_TOKEN_TTL || process.env.REFRESH_TOKEN_TTL);
+      if (maxAge) cookieOptions.maxAge = maxAge;
+      res.cookie("refresh_token", refreshToken, cookieOptions);
+    } catch (e: any) {
+      console.warn("Failed to generate refresh token:", e?.message || e);
+    }
 
     res.status(constants.STATUS_CODES.OK).json({
       success: true,
@@ -401,6 +422,75 @@ export const resetPassword = async (req: Request, res: Response) => {
       success: false,
       message: error.message || "An error occurred",
     });
+    return;
+  }
+};
+
+// Parse cookie header into object
+const parseCookies = (cookieHeader?: string) => {
+  const list: any = {};
+  if (!cookieHeader) return list;
+  cookieHeader.split(";").forEach(function (cookie) {
+    const parts = cookie.split("=");
+    const key = parts.shift()?.trim();
+    if (!key) return;
+    const value = parts.join("=");
+    list[key] = decodeURIComponent(value);
+  });
+  return list;
+};
+
+export const refresh = async (req: Request, res: Response) => {
+  try {
+    const cookies = parseCookies(req.headers?.cookie as string);
+    const refreshToken = cookies["refresh_token"];
+    if (!refreshToken) {
+      res.status(constants.STATUS_CODES.UNAUTHORIZED).json({ success: false, message: "Refresh token missing" });
+      return;
+    }
+
+    let payload: any;
+    try {
+      payload = verifyRefreshToken(refreshToken);
+    } catch (err: any) {
+      res.status(constants.STATUS_CODES.UNAUTHORIZED).json({ success: false, message: "Invalid or expired refresh token" });
+      return;
+    }
+
+    const newAccessToken = await generateToken({ username: payload.username, email_id: payload.email_id, loginid: payload.loginid });
+
+    // rotate refresh token (optional): issue a fresh one
+    try {
+      const newRefresh = await generateRefreshToken({ username: payload.username, email_id: payload.email_id, loginid: payload.loginid });
+      const cookieOptions: any = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        path: "/",
+      };
+      const maxAge = ttlToMs((constants.AUTHENTICATION as any).REFRESH_TOKEN_TTL || process.env.REFRESH_TOKEN_TTL);
+      if (maxAge) cookieOptions.maxAge = maxAge;
+      res.cookie("refresh_token", newRefresh, cookieOptions);
+    } catch (e: any) {
+      console.warn("Failed to rotate refresh token:", e?.message || e);
+    }
+
+    res.status(constants.STATUS_CODES.OK).json({ success: true, data: { token: newAccessToken } });
+    return;
+  } catch (err: any) {
+    res.status(constants.STATUS_CODES.INTERNAL_SERVER_ERROR).json({ success: false, message: err.message || err });
+    return;
+  }
+};
+
+export const logout = async (req: Request, res: Response) => {
+  try {
+    // clear cookie
+    res.clearCookie("refresh_token", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", path: "/" });
+    res.status(constants.STATUS_CODES.OK).json({ success: true, message: "Logged out" });
+    return;
+  } catch (err: any) {
+    res.status(constants.STATUS_CODES.INTERNAL_SERVER_ERROR).json({ success: false, message: err.message || err });
     return;
   }
 };

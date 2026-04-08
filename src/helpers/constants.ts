@@ -172,6 +172,9 @@ export default {
   },
   AUTHENTICATION: {
     APP_SECRET: String(process.env.APP_SECRET),
+    ACCESS_TOKEN_TTL: String(process.env.ACCESS_TOKEN_TTL || "1h"),
+    REFRESH_TOKEN_TTL: String(process.env.REFRESH_TOKEN_TTL || "7d"),
+    REFRESH_TOKEN_SECRET: String(process.env.REFRESH_TOKEN_SECRET || process.env.APP_SECRET || ""),
   },
   MESSAGES: {
     BAD_REQUEST: "Bad Request",

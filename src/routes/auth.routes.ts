@@ -6,6 +6,8 @@ import {
   resetPassword,
   forgotPassword,
     resetPasswordWithLoginId,
+  refresh,
+  logout,
 } from "../controllers/auth.controller";
 
 // Create a new Express router
@@ -15,6 +17,8 @@ const router = express.Router();
 // This route accepts a POST request with the username and password
 // in the request body.
 router.post("/login", login);
+router.post("/refresh", refresh);
+router.post("/logout", logout);
 router.post("/forgotPassword", forgotPassword);
 router.post("/resetPassword", resetPassword);
 router.post("/reset-password-loginid", resetPasswordWithLoginId);

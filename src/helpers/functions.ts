@@ -39,19 +39,51 @@ export const comparePassword = async (args: ComparePasswordInterface) => {
 // Function to generate a JSON Web Token (JWT)
 export const generateToken = async (args: GenerateTokenInterface) => {
   const { username, email_id, loginid } = args;
-
-  const token = jsonwebtoken.sign(
-    {
-      username,
-      email_id,
-      loginid,
-    },
-    constants.AUTHENTICATION.APP_SECRET,
-    {
-      expiresIn: "30d",
-    }
-  );
+  const payload = { username, email_id, loginid };
+  const ttl = (constants.AUTHENTICATION as any).ACCESS_TOKEN_TTL || process.env.ACCESS_TOKEN_TTL;
+  const options: any = {};
+  if (ttl && ttl !== "none") {
+    options.expiresIn = ttl;
+  }
+  const token = jsonwebtoken.sign(payload, constants.AUTHENTICATION.APP_SECRET as string, options as jsonwebtoken.SignOptions);
   return token;
+};
+
+// Convert TTL like "7d", "8h", "30m" or numeric seconds to milliseconds
+export const ttlToMs = (ttl?: string) => {
+  if (!ttl) return undefined;
+  if (ttl === "none") return undefined;
+  // explicit numeric seconds
+  if (/^\d+$/.test(ttl)) return Number(ttl) * 1000;
+  const m = ttl.match(/^(\d+)([smhd])$/);
+  if (!m) return undefined;
+  const val = Number(m[1]);
+  const unit = m[2];
+  const multipliers: any = { s: 1000, m: 60 * 1000, h: 3600 * 1000, d: 24 * 3600 * 1000 };
+  return val * (multipliers[unit] || 1000);
+};
+
+export const generateRefreshToken = async (args: GenerateTokenInterface) => {
+  const { username, email_id, loginid } = args;
+  const payload = { username, email_id, loginid };
+  const ttl = (constants.AUTHENTICATION as any).REFRESH_TOKEN_TTL || process.env.REFRESH_TOKEN_TTL;
+  const secret = (constants.AUTHENTICATION as any).REFRESH_TOKEN_SECRET || constants.AUTHENTICATION.APP_SECRET;
+  const options: any = {};
+  if (ttl && ttl !== "none") {
+    options.expiresIn = ttl;
+  }
+  const token = jsonwebtoken.sign(payload, secret as string, options as jsonwebtoken.SignOptions);
+  return token;
+};
+
+export const verifyRefreshToken = (token: string) => {
+  const secret = (constants.AUTHENTICATION as any).REFRESH_TOKEN_SECRET || constants.AUTHENTICATION.APP_SECRET;
+  try {
+    const decoded = jsonwebtoken.verify(token, secret as string);
+    return decoded as any;
+  } catch (err) {
+    throw err;
+  }
 };
 
 export const buildTree = (
