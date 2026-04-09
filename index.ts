@@ -74,16 +74,17 @@ async function startServerWithTypeORM() {
 
     // Run DB and face model loading truly in parallel
     // facePromise does NOT need DB — safe to run concurrently
-    const [faceResult, dbResult] = await Promise.allSettled([
-      FaceRecognitionService.getInstance(),   // loads models + warm-up only, no DB
-      initializeAllConnections(),             // DB handshake
-    ]);
+    // 🔥 TEMP FIX: disable face-api
+   // 🔥 TEMP FIX: disable face-api
+const [dbResult] = await Promise.allSettled([
+  initializeAllConnections(),
+]);
 
-    if (faceResult.status === "fulfilled") {
-      console.log("✅ Face recognition models ready");
-    } else {
-      console.warn("⚠️  Face model load failed (non-fatal):", faceResult.reason?.message);
-    }
+const faceResult = { status: "rejected" }; // skip face
+
+
+
+   console.warn("⚠️ Face recognition temporarily disabled");
 
     if (dbResult.status === "fulfilled") {
       console.log("✅ Database ready");
@@ -95,7 +96,7 @@ async function startServerWithTypeORM() {
     if (faceResult.status === "fulfilled") {
       try {
         const faceService = await FaceRecognitionService.getInstance();
-        await faceService.refreshDescriptorStore();
+        
         console.log("✅ Face descriptor store loaded");
       } catch (e: any) {
         console.warn("⚠️  Descriptor store failed (will lazy-load on first request):", e?.message);
