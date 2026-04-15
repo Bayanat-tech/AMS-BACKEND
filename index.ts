@@ -37,8 +37,8 @@ import logRoutes from "./src/routes/notification.routes";
 
 import attendanceRoutes from "./src/routes/Attendance/attendance.routes";
 import { AttendanceEventScheduler } from "./src/services/Attendance/attendanceEventScheduler.service";
-import { FaceRecognitionService } from "./src/services/Attendance/face_recognition.service"; 
-import { AttendanceService } from "./src/services/Attendance/Attendance.service"; 
+import { FaceRecognitionService } from "./src/services/Attendance/face_recognition.service";
+import { AttendanceService } from "./src/services/Attendance/Attendance.service";
 
 //----------------routes-------------
 
@@ -74,17 +74,13 @@ async function startServerWithTypeORM() {
 
     // Run DB and face model loading truly in parallel
     // facePromise does NOT need DB — safe to run concurrently
-    // 🔥 TEMP FIX: disable face-api
-   // 🔥 TEMP FIX: disable face-api
-const [dbResult] = await Promise.allSettled([
-  initializeAllConnections(),
-]);
-
-const faceResult = { status: "rejected" }; // skip face
+    const facePromise = FaceRecognitionService.getInstance();
+    const [dbResult, faceResult] = await Promise.allSettled([
+      initializeAllConnections(),
+      facePromise,
+    ]);
 
 
-
-   console.warn("⚠️ Face recognition temporarily disabled");
 
     if (dbResult.status === "fulfilled") {
       console.log("✅ Database ready");
@@ -96,7 +92,7 @@ const faceResult = { status: "rejected" }; // skip face
     if (faceResult.status === "fulfilled") {
       try {
         const faceService = await FaceRecognitionService.getInstance();
-        
+
         console.log("✅ Face descriptor store loaded");
       } catch (e: any) {
         console.warn("⚠️  Descriptor store failed (will lazy-load on first request):", e?.message);
@@ -151,4 +147,3 @@ startServerWithTypeORM().catch(err => {
   console.error('Fatal startup error:', err);
   process.exit(1);
 });
-

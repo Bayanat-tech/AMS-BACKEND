@@ -33,25 +33,25 @@ export class EmployeeController {
 
     const EmployeeRecord = AppDataSource.getRepository(Employee);
     const Face = AppDataSource.getRepository(EmployeeFace);
-
+ 
     const existingEmployee = await EmployeeRecord.findOne({
-      where: { employee_id, company_code },
+      where: { employee_id, company_code }, 
     });
     if (existingEmployee) {
       logger.warn(
         `Registration attempt with duplicate employee_id: ${employee_id}`
       );
-      res.status(400).json({ 
+      res.status(400).json({
         success: false,
         error: "Employee already registered with this ID",
-        message: "Employee already registered with this ID" 
+        message: "Employee already registered with this ID"
       });
       return;
     }
 
     if (!files || files.length === 0) {
       logger.warn("Employee registration attempt without images");
-      res.status(400).json({ 
+      res.status(400).json({
         success: false,
         error: "At least one employee photo is required",
         message: "At least one employee photo is required"
@@ -59,11 +59,6 @@ export class EmployeeController {
       return;
     }
 
-    // Validate each image
-    for (const file of files) {
-      req.file = file;
-      validateImage(req, res, () => {});
-    }
     const employee = EmployeeRecord.create({
       id: uuidv4(),
       company_code,
@@ -88,7 +83,7 @@ export class EmployeeController {
         await uploadFile(file.buffer, s3Key, file.mimetype);
         const descriptor = await faceService.extractFaceDescriptor(file.buffer);
         // Validate descriptor shape (should be 128 floats)
-        if (!Array.isArray(descriptor) || descriptor.length !== 128 || !descriptor.every((n: any) => Number.isFinite(n))) {
+        if (!(descriptor instanceof Float32Array) && !Array.isArray(descriptor) || descriptor.length !== 128 || !Array.from(descriptor).every((n: any) => Number.isFinite(n))) {
           logger.warn(`Invalid descriptor extracted for employee ${employee_id}; skipping this image`, {
             fileName: file.originalname,
             descriptorLength: Array.isArray(descriptor) ? descriptor.length : typeof descriptor,
@@ -101,7 +96,7 @@ export class EmployeeController {
           company_code,
           employee_id,
           s3_key: s3Key,
-          descriptor: JSON.stringify(descriptor),
+          descriptor: JSON.stringify(Array.from(descriptor)),
           is_active: "1",
         });
         await Face.save(face);
@@ -142,10 +137,10 @@ export class EmployeeController {
     res.status(201).json({ success: true, employeeId: employee_id });
   } catch (error: any) {
     logger.error("Employee registration failed", error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: error.message,
-      message: error.message 
+      message: error.message
     });
   }
 }
@@ -176,7 +171,7 @@ export class EmployeeController {
       const employees = await employeeRepository.find({
         where: { company_code },
         order: {
-          full_name: "ASC", 
+          full_name: "ASC",
         },
       });
 
@@ -244,14 +239,11 @@ export class EmployeeController {
         }> = [];
 
         for (const file of files) {
-          req.file = file;
-          validateImage(req, res, () => {});
-
           const s3Key = `employee_faces/${employee_id}/${uuidv4()}.jpg`;
           try {
             await uploadFile(file.buffer, s3Key, file.mimetype);
             const descriptor = await faceService.extractFaceDescriptor(file.buffer);
-            if (!Array.isArray(descriptor) || descriptor.length !== 128 || !descriptor.every((n: any) => Number.isFinite(n))) {
+            if (!(descriptor instanceof Float32Array) && !Array.isArray(descriptor) || descriptor.length !== 128 || !Array.from(descriptor).every((n: any) => Number.isFinite(n))) {
               logger.warn(`Invalid descriptor extracted during modify for employee ${employee_id}; skipping this image`, {
                 fileName: file.originalname,
                 descriptorLength: Array.isArray(descriptor) ? descriptor.length : typeof descriptor,
@@ -263,7 +255,7 @@ export class EmployeeController {
               id: uuidv4(),
               employee_id: employee_id as string,
               s3_key: s3Key,
-              descriptor: JSON.stringify(descriptor),
+              descriptor: JSON.stringify(Array.from(descriptor)),
               is_active: "1",
             });
           } catch (err: any) {
@@ -354,6 +346,4 @@ export class EmployeeController {
       });
     }
   }
-  
-
 }

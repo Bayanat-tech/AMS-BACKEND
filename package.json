@@ -6,7 +6,7 @@
     "build": "tsc --build",
     "clean": "tsc --build --clean",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "ts-node index.ts",
+    "start": "ts-node --transpile-only index.ts",
     "start:dev": "nodemon build/index.js",
     "start:prod": "node build/index.js",
     "dev": "nodemon --watch './**/*.ts' --exec ts-node index.ts"
@@ -18,8 +18,10 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",
     "@aws-sdk/s3-request-presigner": "^3.891.0",
-    "@tensorflow/tfjs": "^1.7.4",
-    "@tensorflow/tfjs-node": "4.17.0",
+    "@tensorflow/tfjs": "^1.7.0",
+    "@tensorflow/tfjs-core": "^1.7.0",
+    "@tensorflow/tfjs-data": "^1.7.0",
+    "@tensorflow/tfjs-node": "^1.7.0",
     "@types/node-fetch": "^2.6.12",
     "@vladmandic/face-api": "^1.7.15",
     "archiver": "^7.0.1",
@@ -49,9 +51,10 @@
     "passport-jwt": "^4.0.1",
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
-    "seedrandom": "^3.0.5",
+    "seedrandom": "^2.4.4",
     "sharp": "^0.34.3",
     "typeorm": "^0.3.27",
+    "uuid": "^9.0.1",
     "winston": "^3.17.0",
     "xlsx": "^0.18.5"
   },
