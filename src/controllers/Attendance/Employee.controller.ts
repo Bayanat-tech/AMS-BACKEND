@@ -237,6 +237,7 @@ export class EmployeeController {
         // Process new images first and collect successful faces
         const newFaces: Array<{
           id: string;
+          company_code: string;
           employee_id: string;
           s3_key: string;
           descriptor: string;
@@ -261,6 +262,7 @@ export class EmployeeController {
 
             newFaces.push({
               id: uuidv4(),
+              company_code,
               employee_id: employee_id as string,
               s3_key: s3Key,
               descriptor: JSON.stringify(descriptor),
@@ -282,7 +284,7 @@ export class EmployeeController {
         }
 
         // Deactivate old faces and save new ones
-        await EmployeesFace.update({ employee_id: employee_id as string }, { is_active: "0" });
+        await EmployeesFace.update({ employee_id: employee_id as string ,company_code }, { is_active: "0" });
         for (const f of newFaces) {
           const faceEntity = EmployeesFace.create(f as any);
           await EmployeesFace.save(faceEntity);
